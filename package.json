@@ -1,0 +1,33 @@
+{
+  "name": "kazana",
+  "version": "1.0.0",
+  "description": "A desktop audio listener for EKAKI",
+  "main": "main/index.js",
+  "repository": "chief-co-jp/kazana",
+  "homepage": "https://ekaki.ai",
+  "author": {
+    "name": "someone",
+    "email": "someone@chief.co.jp",
+    "url": "https://someones.personal.homepage"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "dependencies": {
+    "electron-log": "^4.3.0",
+    "electron-store": "^6.0.1",
+    "electron-updater": "^4.3.5",
+    "electron-util": "^0.14.2",
+    "menubar": "^9.0.1"
+  },
+  "devDependencies": {
+    "electron": "^10.1.5",
+    "electron-builder": "^22.9.1"
+  }
+}
