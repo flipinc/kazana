@@ -3,7 +3,7 @@ const { app, ipcMain, dialog, Menu, Tray, nativeImage, BrowserWindow, protocol }
 const { menubar } = require("menubar");
 const path = require("path");
 const axios = require("axios")
-const { fork } = require("child_process")
+const { spawn } = require("child_process")
 const Store = require("electron-store")
 
 require("dotenv").config({ path: path.join(__dirname, ".env") })
@@ -12,7 +12,7 @@ const { onFirstRun } = require("./first-run");
 
 const store = new Store()
 
-const wsFork = fork(path.join(__dirname, "ws.js"), [], { stdio: ["pipe", "pipe", "pipe", "ipc"] })
+const wsPs = spawn(path.join(__dirname, "./external/WsNaudio/bin/release/netcoreapp3.1/osx-x64/publish/WsNaudio"));
 
 const logoIconPath = path.join(__dirname, "assets/favicon-32x32.png")
 const greenCircleIconPath = path.join(__dirname, "assets/green-circle.png")
@@ -126,7 +126,7 @@ const setAuthMenuItem = (type) => {
       { 
         label: "ログアウト",
         click() {
-          wsFork.send(JSON.stringify({ action: "logout", payload: { userId: store.get("userId"), orgId: store.get("orgId") }}))
+          wsPs.stdin.write(JSON.stringify({ action: "logout", payload: { userId: store.get("userId"), orgId: store.get("orgId") }}))
 
           store.set("userId", "")
           store.set("firstname", "")
@@ -152,10 +152,12 @@ const setAuthMenuItem = (type) => {
 
 const computeSignature = (params) => {
   const data = Object.keys(params).sort().reduce((acc, key) => acc + key + params[key], "")
-  return crypto
+  return String(
+          crypto
           .createHmac("sha1", process.env.TICKET_SECRET_KEY)
           .update(Buffer.from(data, "utf-8"))
           .digest("base64")
+        )
 }
 
 app.on("ready", async () => {
@@ -174,7 +176,7 @@ app.on("ready", async () => {
   if(!!userId && !!orgId) {
     setStateMenuItem("kiki-disconnected")
     setAuthMenuItem("logout")
-    wsFork.send(JSON.stringify({ action: "login", payload: { userId: userId, orgId, } }))
+    wsPs.stdin.write(JSON.stringify({ action: "login", payload: { userId: userId, orgId, signature: computeSignature({ userId, orgId, }) } }))
   } else {
     setStateMenuItem("logout")
     setAuthMenuItem("login")
@@ -209,7 +211,7 @@ ipcMain.on("authForm", (e, data) => {
       setStateMenuItem("kiki-disconnected")
       setAuthMenuItem("logout")
 
-      wsFork.send(JSON.stringify({ action: "login", payload: { userId: _id, orgId, signature: computeSignature({ userId: _id, orgId, }) }}))
+      wsPs.stdin.write(JSON.stringify({ action: "login", payload: { userId: _id, orgId, signature: computeSignature({ userId: _id, orgId, }) }}))
       authWindow.close()
     } else {
 
@@ -221,17 +223,23 @@ ipcMain.on("authForm", (e, data) => {
   .catch(err => console.error(err))
 })
 
-wsFork.stdout.on("data", (data) => {
-  console.log(data.toString())
+
+wsPs.stdin.setEncoding("utf8")
+
+wsPs.stderr.on("data", (message) => {
+  console.log(message.toString())
 })
 
-wsFork.on("error", (err) => {
-  console.log(err)
-});
+wsPs.stdout.on("data", (message) => {
+  let msg;
+  try {
+    msg = JSON.parse(message)
+  } catch(err) {
+    return;
+  }
 
-wsFork.on("message", message => {
-  const msg = JSON.parse(message)
   console.log(msg)
+
   switch(msg.action) {
     case "start-talk":
       setStateMenuItem("talking")

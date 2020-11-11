@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/26keisuke/Documents/electron/kazana/external/WsNaudio/WsNaudio.csproj": {}
+  },
+  "projects": {
+    "/Users/26keisuke/Documents/electron/kazana/external/WsNaudio/WsNaudio.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/26keisuke/Documents/electron/kazana/external/WsNaudio/WsNaudio.csproj",
+        "projectName": "WsNaudio",
+        "projectPath": "/Users/26keisuke/Documents/electron/kazana/external/WsNaudio/WsNaudio.csproj",
+        "packagesPath": "/Users/26keisuke/.nuget/packages/",
+        "outputPath": "/Users/26keisuke/Documents/electron/kazana/external/WsNaudio/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/26keisuke/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netcoreapp3.1"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netcoreapp3.1": {
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "netcoreapp3.1": {
+          "dependencies": {
+            "NAudio": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            },
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[12.0.3, )"
+            },
+            "WebSocketSharp": {
+              "target": "Package",
+              "version": "[1.0.3-rc11, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Runtime.osx-x64",
+              "version": "[3.1.9, 3.1.9]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Runtime.osx-x64",
+              "version": "[3.1.9, 3.1.9]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/3.1.403/RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "osx-x64": {
+          "#import": []
+        }
+      }
+    }
+  }
+}
