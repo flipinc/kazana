@@ -1,36 +1,65 @@
-module.exports = {
-    watch: true,
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-    target: "electron-renderer",
+/**
+ * references
+ * https://github.com/Devtography/electron-react-typescript-webpack-boilerplate
+ */
 
-    entry: "./app/src/index.js",
+let common_config = {
+  node: {
+    __dirname: true
+  },
+  mode: process.env.ENV || 'development',
+  module: {
+    rules: [
+        {
+            test: /\.css$/i,
+            use: ["style-loader", "css-loader"],
+        },
+        {
+            test: /\.tsx?$/,
+            use: 'babel-loader',
+            exclude: [/node_modules/]
+        },
+        {
+            test: /\.(png|jpe?g|gif|svg)$/,
+            loader: "file-loader",
+            options: {
+                esModule: false,
+            },
+        },
+    ]
+  },
+  resolve: {
+    extensions: [ '.tsx', '.ts', '.js' ]
+  },
+};
 
-    output: {
-        path: __dirname + "/app/build",
-        publicPath: "build/",
-        filename: "bundle.js",
+module.exports = [
+  Object.assign({}, common_config, {
+    target: 'electron-main',
+    entry: {
+      renderrer: './src/main/index.ts',
     },
-
-    module: {
-        rules: [
-            {
-                test: /\.jsx?$/,
-                loader: "babel-loader",
-                options: {
-                    presets: ["@babel/preset-react"]
-                }
-            },
-            {
-                test: /\.(png|jpe?g|gif|svg)$/,
-                loader: "file-loader",
-                options: {
-                    esModule: false,
-                },
-            },
-            {
-                test: /\.css$/i,
-                use: ["style-loader", "css-loader"],
-            },
-        ]
-    }
-}
+    output: {
+      filename: 'main.bundle.js',
+      path: path.resolve(__dirname, 'dist')
+    },
+  }),
+  Object.assign({}, common_config, {
+    target: 'electron-renderer',
+    entry: {
+      ui: './src/renderer/index.tsx',
+    },
+    output: {
+      filename: 'renderer.bundle.js',
+      path: path.resolve(__dirname, 'dist')
+    },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: path.resolve(__dirname, './public/index.html'),
+        })
+    ]
+  })
+]

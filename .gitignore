@@ -1,5 +1,5 @@
-node_modules
-.env
+dist
 
-/external/WsNaudio/bin
-/external/WsNaudio/obj
+node_modules
+
+.env
