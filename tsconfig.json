@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "sourceMap": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "isolatedModules": true,
+        "noFallthroughCasesInSwitch": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "allowSyntheticDefaultImports": true,
+
+        "target": "es5",
+        "module": "commonjs",
+        "jsx": "react",
+        "typeRoots": [
+            "node_modules/@types",
+            "src/@types"
+        ],
+        "outDir": "dist"
+    },
+    "include": [
+        "src/**/*"
+    ]
+}
+  
