@@ -12,7 +12,8 @@ module.exports = {
       "ecmaFeatures": {
         "jsx": true
       },
-      "project": "./tsconfig.json"
+      "project": "./tsconfig.json",
+      "tsconfigRootDir": __dirname, // rootのtsconfig.jsonを各パッケージから参照する
     },
     "env": {
         "es6": true,
