@@ -18,60 +18,44 @@ import {
 import { menubar } from "menubar";
 import path from "path";
 import axios from "axios";
-import { spawn } from "child_process";
 import Store from "electron-store";
 
+// including this will enable to pinpoint lines that causes errors
+// eslint-disable-next-line import/no-extraneous-dependencies
+import sourceMapSupport from "source-map-support";
+
+import Socket from "./websocket";
 import onLaunch from "./launch";
 
-const DEBUGGING = process.env.NODE_ENV === "development";
+sourceMapSupport.install();
 
 const store = new Store();
+const socket = new Socket();
 
-const wsPs = spawn("node", [path.join(__dirname, "websocket.js")]);
+// ref: https://stackoverflow.com/questions/46022443/electron-how-to-add-external-files
+const baseStaticPath = app.isPackaged
+  ? path.join(process.resourcesPath, "extraResources")
+  : path.join(__dirname, "..", "static");
 
 // all icons are from flaticon
-const logoIconPath = path.join(__dirname, "..", "static", "/favicon-32x32.png");
-const greenCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/green-circle.png",
-);
-const grayCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/gray-circle.png",
-);
-const redCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/red-circle.png",
-);
-const purpleCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/purple-circle.png",
-);
-const blueCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/blue-circle.png",
-);
-const yellowCircleIconPath = path.join(
-  __dirname,
-  "..",
-  "static",
-  "/yellow-circle.png",
-);
+const logoIconPath = path.join(baseStaticPath, "/favicon-32x32.png");
+const updateWarningIconPath = path.join(baseStaticPath, "/update-warning.png");
+const greenCircleIconPath = path.join(baseStaticPath, "/green-circle.png");
+const grayCircleIconPath = path.join(baseStaticPath, "/gray-circle.png");
+const redCircleIconPath = path.join(baseStaticPath, "/red-circle.png");
+const purpleCircleIconPath = path.join(baseStaticPath, "/purple-circle.png");
+const yellowCircleIconPath = path.join(baseStaticPath, "/yellow-circle.png");
 
+let aboutWindow: BrowserWindow | null = null;
 let authWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 const createAuthWindow = () => {
+  if (aboutWindow && aboutWindow.isVisible()) {
+    aboutWindow.close();
+    aboutWindow = null;
+  }
+
   authWindow = new BrowserWindow({
     height: 360,
     width: 600,
@@ -81,43 +65,89 @@ const createAuthWindow = () => {
     },
   });
 
-  if (DEBUGGING) {
+  if (!app.isPackaged) {
     authWindow.webContents.openDevTools();
   }
 
-  authWindow.loadURL(`file://${path.join(__dirname, "index.html")}`);
+  authWindow.loadURL(`file://${path.join(__dirname, "index.html#/auth")}`);
+};
+
+const createAboutWindow = () => {
+  if (authWindow && authWindow.isVisible()) {
+    authWindow.close();
+    authWindow = null;
+  }
+
+  aboutWindow = new BrowserWindow({
+    height: 640,
+    width: 960,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: true,
+    },
+  });
+
+  if (!app.isPackaged) {
+    aboutWindow.webContents.openDevTools();
+  }
+
+  aboutWindow.loadURL(`file://${path.join(__dirname, "index.html#/about")}`);
 };
 
 const menuItems: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
   {
     id: "state",
-    label: "THIS WILL BE OVERRIDED",
+    label: "", // this will be overrided
   },
   { type: "separator" },
   {
-    label: "環境設定",
-    accelerator: "Command+,",
+    id: "version",
+    label: "", // this will be overrided
     click() {},
   },
+  { type: "separator" },
   {
-    label: "EKAKI for Desktopについて",
-    role: "about",
+    label: "EKAKI Desktopについて",
+    click() {
+      createAboutWindow();
+    },
   },
   { type: "separator" },
   {
     id: "account",
-    label: "THIS WILL BE OVERRIDED",
+    label: "", // this will be overrided
   },
   { type: "separator" },
   {
     label: "再起動",
     role: "reload",
+    accelerator: "Command+R",
   },
   {
-    label: "EKAKI for Desktopを終了",
+    label: "EKAKI Desktopを終了",
     role: "quit",
+    accelerator: "Command+Q",
   },
 ];
+
+const setVersionItem = (isUpdated: boolean) => {
+  const menuItemIndex = menuItems.findIndex((item) => item.id === "version");
+
+  menuItems[menuItemIndex] = {
+    id: "version",
+  };
+
+  if (isUpdated) {
+    menuItems[menuItemIndex].label = "最新バージョンの確認";
+    menuItems[menuItemIndex].click = () => {};
+  } else {
+    menuItems[menuItemIndex].icon = nativeImage
+      .createFromPath(updateWarningIconPath)
+      .resize({ width: 11 });
+    menuItems[menuItemIndex].label = "最新バージョンにアップデート";
+    menuItems[menuItemIndex].click = () => {};
+  }
+};
 
 const setStateMenuItem = (state: ConnStates) => {
   const menuItemIndex = menuItems.findIndex((item) => item.id === "state");
@@ -136,21 +166,16 @@ const setStateMenuItem = (state: ConnStates) => {
       break;
     case "waiting":
       menuItems[menuItemIndex].icon = nativeImage
-        .createFromPath(blueCircleIconPath)
+        .createFromPath(greenCircleIconPath)
         .resize({ width: 11 });
       menuItems[menuItemIndex].label = "トークの待機中";
       break;
     case "client-disconnected":
-      menuItems[menuItemIndex].icon = nativeImage
-        .createFromPath(greenCircleIconPath)
-        .resize({ width: 11 });
-      menuItems[menuItemIndex].label = "接続の待機中";
-      break;
     case "kiki-disconnected":
       menuItems[menuItemIndex].icon = nativeImage
         .createFromPath(yellowCircleIconPath)
         .resize({ width: 11 });
-      menuItems[menuItemIndex].label = "接続の準備中";
+      menuItems[menuItemIndex].label = "接続の待機中";
       break;
     case "logout":
       menuItems[menuItemIndex].icon = nativeImage
@@ -187,15 +212,7 @@ const setAuthMenuItem = (type: string) => {
       {
         label: "ログアウト",
         click() {
-          wsPs.stdin.write(
-            JSON.stringify({
-              action: "logout",
-              payload: {
-                userId: store.get("userId"),
-                orgId: store.get("orgId"),
-              },
-            }),
-          );
+          socket.close();
 
           store.set("userId", "");
           store.set("firstname", "");
@@ -220,7 +237,7 @@ const setAuthMenuItem = (type: string) => {
 };
 
 const computeSignature = (params: any) => {
-  // we need some mechanism to allow only authorized use to connect to kiki
+  // TODO: we need some mechanism to allow only authorized use to connect to kiki
   const SECRET_KEY = "THIS_SHOULD_BE_USED_FOR_DEV_PURPOSE_ONLY";
 
   const data = Object.keys(params)
@@ -243,10 +260,12 @@ app.on("ready", async () => {
   try {
     await onLaunch();
   } catch (err) {
-    // TODO
+    // TODO: Logging
   }
 
   tray = new Tray(nativeImage.createFromPath(logoIconPath));
+
+  setVersionItem(false);
 
   const userId = store.get("userId");
   const orgId = store.get("orgId");
@@ -254,16 +273,12 @@ app.on("ready", async () => {
   if (!!userId && !!orgId) {
     setStateMenuItem("kiki-disconnected");
     setAuthMenuItem("logout");
-    wsPs.stdin.write(
-      JSON.stringify({
-        action: "login",
-        payload: {
-          userId,
-          orgId,
-          signature: computeSignature({ userId, orgId }),
-        },
-      }),
-    );
+
+    socket.connect({
+      userId: userId as string,
+      orgId: orgId as string,
+      signature: computeSignature({ type: "kazana", userId, orgId }),
+    });
   } else {
     setStateMenuItem("logout");
     setAuthMenuItem("login");
@@ -271,6 +286,8 @@ app.on("ready", async () => {
 
   menubar({ tray });
 });
+
+app.on("window-all-closed", () => {});
 
 ipcMain.on("authForm", async (e, data) => {
   store.get("userId");
@@ -280,8 +297,6 @@ ipcMain.on("authForm", async (e, data) => {
       "http://localhost:4000/api/user/auth/login",
       data,
     );
-
-    console.log("🐳", res.status);
 
     if (res.status === 200) {
       const {
@@ -307,19 +322,17 @@ ipcMain.on("authForm", async (e, data) => {
       setStateMenuItem("kiki-disconnected");
       setAuthMenuItem("logout");
 
-      wsPs.stdin.write(
-        JSON.stringify({
-          action: "login",
-          payload: {
-            userId: _id,
-            orgId,
-            signature: computeSignature({ userId: _id, orgId }),
-          },
-        }),
-      );
+      socket.connect({
+        userId: _id,
+        orgId,
+        signature: computeSignature({ type: "kazana", userId: _id, orgId }),
+      });
 
       // Close auth window if it is still open
-      if (authWindow) authWindow.close();
+      if (authWindow) {
+        authWindow.close();
+        authWindow = null;
+      }
     } else {
       throw Error("Authentification failed.");
     }
@@ -328,19 +341,7 @@ ipcMain.on("authForm", async (e, data) => {
   }
 });
 
-wsPs.stdin.setDefaultEncoding("utf8");
-
-wsPs.stderr.on("data", () => {});
-
-wsPs.stdout.on("data", (message) => {
-  let msg;
-
-  try {
-    msg = JSON.parse(message);
-  } catch (err) {
-    return;
-  }
-
+socket.onMessage((msg) => {
   console.log(msg);
 
   switch (msg.action) {

@@ -49,8 +49,7 @@ interface UserBackend {
  * Color codes:
  * - talking -> purle
  * - waiting -> blue
- * - client-disconnected -> green
- * - kiki-disconnected -> yellow
+ * - kiki-disconnected & client-disconnected -> yellow
  * - logout -> red
  * - no-network -> gray
  */
@@ -61,3 +60,17 @@ type ConnStates =
   | "kiki-disconnected"
   | "logout"
   | "no-network";
+
+type KIKIAction = "message";
+
+type KIKIMessage = {
+  action:
+    | "ping"
+    | "start-talk"
+    | "end-talk"
+    | "client-connected"
+    | "client-disconnected"
+    | "kiki-connected"
+    | "kiki-disconnected";
+  payload?: any;
+};
