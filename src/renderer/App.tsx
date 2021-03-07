@@ -1,6 +1,8 @@
 import { debounce } from "lodash";
 import styled from "styled-components";
 import React, { useState, useMemo } from "react";
+// electron is listed as devDependency
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer, shell } from "electron";
 
 import "./css/reset.css";

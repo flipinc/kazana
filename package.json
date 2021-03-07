@@ -1,33 +1,35 @@
 {
   "name": "kazana",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Desktop App for EKAKI",
-  "main": "/dist/main.bundle.js",
+  "main": "build/main.bundle.js",
   "repository": "chief-co-jp/kazana",
   "homepage": "https://ekaki.ai",
   "author": {
     "name": "Keisuke Iizuka",
-    "email": "26keisuke@chief.co.jp",
-    "url": "https://chief.co.jp"
+    "email": "26keisuke@chief.co.jp"
   },
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
+  "build": {
+    "appId": "ekaki.kazana",
+    "productName": "EKAKI for Desktop",
+    "buildResources": "static",
+    "files": [
+      "build/**/*",
+      "package.json"
+    ]
   },
   "scripts": {
-    "serve": "electron ./dist/main.bundle.js",
-    "build": "webpack --watch --config webpack.config.js",
-    "start": "npm-run-all --parallel build serve",
+    "serve": "electron ./build/main.bundle.js",
+    "build": "webpack --config webpack.config.js",
+    "start": "yarn build && yarn serve",
     "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix ./src",
-    "build:mac": "electron-builder build --mac --x64",
-    "build:win": "electron-builder build --win --x64"
+    "dist:win": "electron-builder build --win --x64"
   },
   "keywords": [],
   "license": "ISC",
   "dependencies": {
     "axios": "^0.21.0",
     "dotenv": "^8.2.0",
-    "electron": "^12.0.0",
     "electron-log": "^4.3.0",
     "electron-store": "^7.0.2",
     "electron-util": "^0.14.2",
@@ -55,6 +57,7 @@
     "@typescript-eslint/parser": "^4.16.1",
     "babel-loader": "^8.1.0",
     "css-loader": "^5.0.1",
+    "electron": "^11.3.0",
     "electron-builder": "^22.9.1",
     "electron-rebuild": "^2.3.2",
     "electron-reload": "^1.5.0",

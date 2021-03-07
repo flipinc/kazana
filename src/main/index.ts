@@ -1,3 +1,8 @@
+/**
+ * Note: As of 2021/3/5 a new electron version 12.0 is listed as a stable release, however, it will give
+ * `require() is not defined` whenever a new window is created. Therefore, using latest version of 11.*
+ */
+
 import crypto from "crypto";
 import {
   app,
@@ -7,6 +12,8 @@ import {
   nativeImage,
   BrowserWindow,
   protocol,
+  // electron should be listed as devDependency
+  // eslint-disable-next-line import/no-extraneous-dependencies
 } from "electron";
 import { menubar } from "menubar";
 import path from "path";
@@ -16,22 +23,50 @@ import Store from "electron-store";
 
 import onLaunch from "./launch";
 
-require("dotenv").config({ path: path.join(__dirname, ".env") });
-
-const debugging = true;
+const DEBUGGING = process.env.NODE_ENV === "development";
 
 const store = new Store();
 
-const wsPs = spawn("node", [path.join(__dirname, "./websocket.js")]);
+const wsPs = spawn("node", [path.join(__dirname, "websocket.js")]);
 
 // all icons are from flaticon
-const logoIconPath = path.join(__dirname, "./assets/favicon-32x32.png");
-const greenCircleIconPath = path.join(__dirname, "./assets/green-circle.png");
-const grayCircleIconPath = path.join(__dirname, "./assets/gray-circle.png");
-const redCircleIconPath = path.join(__dirname, "./assets/red-circle.png");
-const purpleCircleIconPath = path.join(__dirname, "./assets/purple-circle.png");
-const blueCircleIconPath = path.join(__dirname, "./assets/blue-circle.png");
-const yellowCircleIconPath = path.join(__dirname, "./assets/yellow-circle.png");
+const logoIconPath = path.join(__dirname, "..", "static", "/favicon-32x32.png");
+const greenCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/green-circle.png",
+);
+const grayCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/gray-circle.png",
+);
+const redCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/red-circle.png",
+);
+const purpleCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/purple-circle.png",
+);
+const blueCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/blue-circle.png",
+);
+const yellowCircleIconPath = path.join(
+  __dirname,
+  "..",
+  "static",
+  "/yellow-circle.png",
+);
 
 let authWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -46,11 +81,11 @@ const createAuthWindow = () => {
     },
   });
 
-  if (debugging) {
+  if (DEBUGGING) {
     authWindow.webContents.openDevTools();
   }
 
-  authWindow.loadURL(`file://${path.join(__dirname, "public", "index.html")}`);
+  authWindow.loadURL(`file://${path.join(__dirname, "index.html")}`);
 };
 
 const menuItems: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
@@ -185,17 +220,15 @@ const setAuthMenuItem = (type: string) => {
 };
 
 const computeSignature = (params: any) => {
-  if (!process.env.TICKET_SECRET_KEY) {
-    // TODO: logging
-    throw Error("Secret key has not been set yet.");
-  }
+  // we need some mechanism to allow only authorized use to connect to kiki
+  const SECRET_KEY = "THIS_SHOULD_BE_USED_FOR_DEV_PURPOSE_ONLY";
 
   const data = Object.keys(params)
     .sort()
     .reduce((acc, key) => acc + key + params[key], "");
   return String(
     crypto
-      .createHmac("sha1", process.env.TICKET_SECRET_KEY)
+      .createHmac("sha1", SECRET_KEY)
       .update(Buffer.from(data, "utf-8"))
       .digest("base64"),
   );
@@ -207,7 +240,11 @@ app.on("ready", async () => {
     callback(pathname);
   });
 
-  await onLaunch();
+  try {
+    await onLaunch();
+  } catch (err) {
+    // TODO
+  }
 
   tray = new Tray(nativeImage.createFromPath(logoIconPath));
 
@@ -244,7 +281,9 @@ ipcMain.on("authForm", async (e, data) => {
       data,
     );
 
-    if (res.data.success) {
+    console.log("🐳", res.status);
+
+    if (res.status === 200) {
       const {
         _id,
         firstname,
@@ -252,6 +291,7 @@ ipcMain.on("authForm", async (e, data) => {
         email,
         membership,
       }: UserBackend = res.data.data.user;
+
       store.set("userId", _id);
       store.set("firstname", firstname);
       store.set("lastname", lastname);

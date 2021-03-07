@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { dialog } from "electron";
 import Store from "electron-store";
 
