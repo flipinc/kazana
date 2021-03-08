@@ -15,7 +15,6 @@ import {
   // electron should be listed as devDependency
   // eslint-disable-next-line import/no-extraneous-dependencies
 } from "electron";
-import { menubar } from "menubar";
 import path from "path";
 import axios from "axios";
 import Store from "electron-store";
@@ -194,7 +193,11 @@ const setStateMenuItem = (state: ConnStates) => {
       return;
   }
 
-  tray!.setContextMenu(Menu.buildFromTemplate(menuItems));
+  if (tray) {
+    tray.setContextMenu(Menu.buildFromTemplate(menuItems));
+  } else {
+    // TODO: logging
+  }
 };
 
 const setAuthMenuItem = (type: string) => {
@@ -233,7 +236,11 @@ const setAuthMenuItem = (type: string) => {
     };
   }
 
-  tray!.setContextMenu(Menu.buildFromTemplate(menuItems));
+  if (tray) {
+    tray.setContextMenu(Menu.buildFromTemplate(menuItems));
+  } else {
+    // TODO: logging
+  }
 };
 
 const computeSignature = (params: any) => {
@@ -283,8 +290,6 @@ app.on("ready", async () => {
     setStateMenuItem("logout");
     setAuthMenuItem("login");
   }
-
-  menubar({ tray });
 });
 
 app.on("window-all-closed", () => {});
