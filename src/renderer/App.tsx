@@ -4,6 +4,9 @@ import { HashRouter, Route, Switch } from "react-router-dom";
 import Auth from "./views/Auth";
 import About from "./views/About";
 
+import "./css/reset.css";
+import "./css/App.css";
+
 const App = () => {
   return (
     <HashRouter>

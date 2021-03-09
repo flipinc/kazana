@@ -31,7 +31,8 @@
   "scripts": {
     "serve": "electron ./build/main.bundle.js",
     "build": "webpack --config webpack.config.js",
-    "start": "yarn build && yarn serve",
+    "dev": "webpack --watch --config webpack.config.js",
+    "start": "npm-run-all --parallel dev serve",
     "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix ./src",
     "dist": "NODE_ENV=production yarn build && electron-builder build"
   },
