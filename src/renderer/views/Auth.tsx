@@ -5,9 +5,6 @@ import React, { useState, useMemo } from "react";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer, shell } from "electron";
 
-import "../css/reset.css";
-import "../css/App.css";
-
 const ekakiImage = require("../assets/ekaki-logo.png");
 const authBackground = require("../assets/background.svg");
 
@@ -63,9 +60,9 @@ const Auth = () => {
           />
           <button type="submit">ログイン</button>
         </form>
-        <div onClick={handleLinkClick}>
+        <div>
           まだEKAKIに登録されていない方/パスワードをお忘れの方は
-          <span>こちら</span>
+          <span onClick={handleLinkClick}>こちら</span>
         </div>
       </div>
       <img src={authBackground} alt="auth-background" />
@@ -164,12 +161,12 @@ const Box = styled.div`
 
       & > span {
         color: #3c95fb;
-        text-decoration: underline;
         transition: 160ms;
         cursor: pointer;
 
         &:hover {
           color: #7db8fc;
+          text-decoration: underline;
         }
       }
     }

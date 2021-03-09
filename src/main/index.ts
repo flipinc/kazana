@@ -50,6 +50,7 @@ let authWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 const createAuthWindow = () => {
+  if (authWindow && authWindow.isVisible()) return;
   if (aboutWindow && aboutWindow.isVisible()) {
     aboutWindow.close();
     aboutWindow = null;
@@ -64,6 +65,11 @@ const createAuthWindow = () => {
     },
   });
 
+  /** if user manually deletes this window, window has to be set to null programatically */
+  authWindow.on("closed", () => {
+    authWindow = null;
+  });
+
   if (!app.isPackaged) {
     authWindow.webContents.openDevTools();
   }
@@ -72,18 +78,23 @@ const createAuthWindow = () => {
 };
 
 const createAboutWindow = () => {
+  if (aboutWindow && aboutWindow.isVisible()) return;
   if (authWindow && authWindow.isVisible()) {
     authWindow.close();
     authWindow = null;
   }
 
   aboutWindow = new BrowserWindow({
-    height: 640,
-    width: 960,
+    height: 680,
+    width: 1120,
     resizable: false,
     webPreferences: {
       nodeIntegration: true,
     },
+  });
+
+  aboutWindow.on("closed", () => {
+    aboutWindow = null;
   });
 
   if (!app.isPackaged) {
@@ -347,8 +358,6 @@ ipcMain.on("authForm", async (e, data) => {
 });
 
 socket.onMessage((msg) => {
-  console.log(msg);
-
   switch (msg.action) {
     case "start-talk":
       setStateMenuItem("talking");
