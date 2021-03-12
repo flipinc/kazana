@@ -18,7 +18,7 @@ const onLaunch = async () => {
   });
 
   if (response === 0) {
-    console.log("HELLO");
+    // TODO
   }
 };
 
