@@ -102,7 +102,6 @@ const SlideButton = styled.div<{ selected: boolean }>`
   padding: 12px 16px;
   transition: 180ms;
   cursor: pointer;
-  display: flex;
 
   & > h5 {
     font-size: 13px;

@@ -3,6 +3,15 @@
  * `require() is not defined` whenever a new window is created. Therefore, using latest version of 11.*
  */
 
+/**
+ * TODO:
+ * - change EKAKI Desktopについて to ダッシュボード (with icon like Docker Desktop) and include followings:
+ *  - allow user to check global, microphone, loopback, asr status
+ *  - allow user to change microphones
+ * - everytime user opens an app, send Device information and test pass info. (this is needed for debugging asr)
+ * - when Stream is stopped, send `start_time`, `end_time` to server
+ */
+
 import crypto from "crypto";
 import {
   app,
