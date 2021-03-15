@@ -1,6 +1,9 @@
 dist
 build
 
+lib/*
+pokari/*
+
 node_modules
 
 .env

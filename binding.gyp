@@ -1,0 +1,1 @@
+{} # this is necessary for the build package to be detected by electron-rebuild
