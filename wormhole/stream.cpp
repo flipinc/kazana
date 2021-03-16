@@ -1,3 +1,7 @@
+#include <thread>
+#include <locale>
+#include <codecvt>
+
 #include <napi.h>
 #include <RtAudio.h>
 
@@ -17,13 +21,19 @@ extern "C" {
     #define PLATFORM_NAME NULL
 #endif
 
+// from http://www.zedwood.com/article/cpp-utf8-char-to-codepoint
+std::string upointToString(int cp) {
+    char c[5]={ 0x00,0x00,0x00,0x00,0x00 };
+    if     (cp<=0x7F) { c[0] = cp;  }
+    else if(cp<=0x7FF) { c[0] = (cp>>6)+192; c[1] = (cp&63)+128; }
+    else if(0xd800<=cp && cp<=0xdfff) {} //invalid block of utf8
+    else if(cp<=0xFFFF) { c[0] = (cp>>12)+224; c[1]= ((cp>>6)&63)+128; c[2]=(cp&63)+128; }
+    else if(cp<=0x10FFFF) { c[0] = (cp>>18)+240; c[1] = ((cp>>12)&63)+128; c[2] = ((cp>>6)&63)+128; c[3]=(cp&63)+128; }
+    return std::string(c);
+}
 
-// TODO: this method has to be run on single thread
-void Stream::recognize(void* signal, void* prev_token, void* encoder_states, void* predictor_states, void* upoints) {
+void Stream::recognize() {
     // if data in any of queue, wake up and run
-
-    // TfLiteTensor* signal_it = TfLiteInterpreterGetInputTensor(interpreter, 0);
-    // TfLiteTensorCopyFromBuffer(signal_it, signal, signal.size() * sizeof(float));
 
     // TfLiteTensor* prev_token_it = TfLiteInterpreterGetInputTensor(interpreter, 1);
     // TfLiteTensorCopyFromBuffer(prev_token_it, prev_token, input.size() * sizeof(float));
@@ -48,16 +58,50 @@ void Stream::recognize(void* signal, void* prev_token, void* encoder_states, voi
     // const TfLiteTensor* predictor_states_ot = TfLiteInterpreterGetOutputTensor(interpreter, 3);
     // TfLiteTensorCopyToBuffer(predictor_states_ot, predictor_states, output.size() * sizeof(float));
 
-    recognizeCallback.NonBlockingCall([](Napi::Env env, Napi::Function callback) {
-        std::string output = "HELLO??";
-        callback.Call({Napi::String::New(env, output)});
-    });
+    std::unique_lock microphoneLock(microphoneMutex, std::defer_lock);
+
+    while (1) {
+        microphoneLock.lock();
+        hasDataArrived.wait(microphoneLock);
+
+        std::shared_ptr<int8_t> signal = microphoneData.front();
+        microphoneData.pop();
+        microphoneLock.unlock();
+
+        // TfLiteTensor* signal_it = TfLiteInterpreterGetInputTensor(interpreter, 0);
+        // TfLiteTensorCopyFromBuffer(signal_it, signal, signal.size() * sizeof(float));
+
+        std::string ouput = upointToString(68);
+
+        recognizeCallback.NonBlockingCall([ouput](Napi::Env env, Napi::Function callback) {
+            callback.Call({Napi::String::New(env, ouput)});
+        });
+    }
 }
 
 int listen(void* outputbuffer, void *inputbuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData) {
+    std::cout << "Receiving..." << std::endl;
 
-    // put data to queue (given by userData)
+    Stream *stream = (Stream *)userData;
 
+    std::shared_ptr<int8_t> inputData(new int8_t[stream->segmentSize * stream->sampleSize]);
+
+    std::unique_lock microphoneLock(stream->microphoneMutex, std::defer_lock);
+
+    // Verify frame size
+    if (numFrames != stream->segmentSize)
+	{
+		return 0;
+	}
+
+    memcpy(inputData.get(), inputbuffer, stream->segmentSize * stream->sampleSize);
+
+    microphoneLock.lock();
+    stream->microphoneData.push(inputData);
+    // Manual unlocking is done before notifying, to avoid waking up the waiting thread only to block again
+    microphoneLock.unlock();
+    stream->hasDataArrived.notify_one();
+    
     return 0;
 }
 
@@ -66,7 +110,6 @@ Napi::Object Stream::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("onRecognize", &Stream::onRecognize),
         InstanceMethod("start", &Stream::start),
         InstanceMethod("stop", &Stream::stop),
-        InstanceMethod("test", &Stream::test),
     });
 
     Napi::FunctionReference* constructor = new Napi::FunctionReference();
@@ -90,7 +133,9 @@ Stream::Stream(const Napi::CallbackInfo& info) :
     encoderType((Encoder)(int)info[0].As<Napi::Number>()),
     chunkSize((unsigned int)info[1].As<Napi::Number>()),
     rightSize((unsigned int)info[2].As<Napi::Number>()),
-    segmentSize(chunkSize + rightSize) 
+    segmentSize(chunkSize + rightSize),
+    format((int)info[3].As<Napi::Number>()),
+    sampleSize(getSampleSize(format))
 {
     Napi::Env env = info.Env();
 
@@ -106,31 +151,24 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         return;
     }
 
-    // an example can be found in
-    // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/c/c_api.h
-    // for local
-    const char* model_path = "/home/keisuke26/Documents/Chief/ekaki/kazana-workspace/pokari/emformer_char3265_mini_stack.tflite";
-    // for docker
-    // const char* model_path = "/workspace/pokari/emformer_char3265_mini_stack.tflite";
-    TfLiteModel* model = TfLiteModelCreateFromFile(model_path);
+    const char* model_path = "/home/keisuke26/Documents/Chief/ekaki/kazana/pokari/rnnt_char.tflite";
+    model = TfLiteModelCreateFromFile(model_path);
     if (model == nullptr) {
         Napi::Error::New(env, "Model could not be loaded.").ThrowAsJavaScriptException();
         return;
     }
 
-    TfLiteInterpreterOptions* options = TfLiteInterpreterOptionsCreate();
+    options = TfLiteInterpreterOptionsCreate();
     TfLiteInterpreterOptionsSetNumThreads(options, 2);
     
-    TfLiteInterpreter* interpreter = TfLiteInterpreterCreate(model, options);
+    interpreter = TfLiteInterpreterCreate(model, options);
     if (interpreter == nullptr) {
         Napi::Error::New(env, "Failed initializing tflite interpreter.").ThrowAsJavaScriptException();
         return;
     }
     
     TfLiteInterpreterResizeInputTensor(interpreter, 0, (int*)(&segmentSize), 1);
-    // TfLiteInterpreterAllocateTensors(interpreter);
-    // ERROR: Regular TensorFlow ops are not supported by this interpreter. Make sure you apply/link the Flex delegate before inference.
-    // ERROR: Node number 6 (FlexStridedSlice) failed to prepare.
+    TfLiteInterpreterAllocateTensors(interpreter);
 
     rtAudio = std::make_shared<RtAudio>();
 
@@ -142,8 +180,7 @@ Stream::Stream(const Napi::CallbackInfo& info) :
     unsigned int numFrames = segmentSize;
 
     try {
-        // TODO: call recognize
-        rtAudio->openStream(NULL, &parameters, RTAUDIO_FLOAT32, sampleRate, &numFrames, &listen, NULL); // TODO: pass two queues for userData
+        rtAudio->openStream(NULL, &parameters, RTAUDIO_FLOAT32, sampleRate, &numFrames, &listen, this);
     } catch(RtAudioError& e) {
         Napi::Error::New(env, e.getMessage()).ThrowAsJavaScriptException();
         return;
@@ -154,12 +191,13 @@ Stream::Stream(const Napi::CallbackInfo& info) :
  * Destructor for Stream Class
  */
 Stream::~Stream() {
-    // if stream is open, close stream
+    std::cout << "Running destructor..." << std::endl;
 
-    /// Dispose of the model and interpreter objects.
-    /// TfLiteInterpreterDelete(interpreter);
-    /// TfLiteInterpreterOptionsDelete(options);
-    /// TfLiteModelDelete(model);
+    if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
+
+    TfLiteInterpreterDelete(interpreter);
+    TfLiteInterpreterOptionsDelete(options);
+    TfLiteModelDelete(model);
 }
 
 
@@ -203,9 +241,15 @@ void Stream::start(const Napi::CallbackInfo& info) {
     // 2.3 Chech if default loopback device has 16000Hz in supported sample rates
     // if not, use the default sample rate
 
-    // TODO: check if recognizeCallback is defined.
-    
     Napi::Env env = info.Env();
+
+    if (recognizeCallback == nullptr) {
+        Napi::Error::New(env, "Recognize callback must be set before starting.").ThrowAsJavaScriptException();
+        return;
+    }
+    
+    std::thread recognizeThread(&Stream::recognize, this);
+    recognizeThread.detach();
 
     try {
         rtAudio->startStream();
@@ -216,11 +260,32 @@ void Stream::start(const Napi::CallbackInfo& info) {
 }
 
 void Stream::stop(const Napi::CallbackInfo& info) {
-    // if stream is open, close stream
+    std::cout << "Stream has been stopped." << std::endl;
+
+    if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
 }
 
-Napi::Value Stream::test(const Napi::CallbackInfo& info) {
-    // temporary value
-    Napi::Number time_lapsed = Napi::Number::New(info.Env(), 5);
-    return time_lapsed;
+unsigned int Stream::getSampleSize(RtAudioFormat format)
+{
+	switch (format)
+	{
+	case RTAUDIO_SINT8:
+		return 1;
+
+	case RTAUDIO_SINT16:
+		return 2;
+
+	case RTAUDIO_SINT24:
+		return 3;
+
+	case RTAUDIO_SINT32:
+	case RTAUDIO_FLOAT32:
+		return 4;
+
+	case RTAUDIO_FLOAT64:
+		return 8;
+
+	default:
+		return 0;
+	}
 }
