@@ -14,6 +14,8 @@ RUN apt-get update && \
     apt-get -y install cmake protobuf-compiler && \
     # install alsa and pulse audio
     apt-get -y install libasound2 libasound2-dev libpulse-dev && \
+    # install nano
+    apt-get -y install nano && \
     # install git
     apt-get -y install git && \
     # install python

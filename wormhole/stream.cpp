@@ -1,6 +1,7 @@
 #include <thread>
 #include <locale>
 #include <codecvt>
+#include <vector>
 
 #include <napi.h>
 #include <RtAudio.h>
@@ -33,19 +34,6 @@ std::string upointToString(int cp) {
 }
 
 void Stream::recognize() {
-    // if data in any of queue, wake up and run
-
-    // TfLiteTensor* prev_token_it = TfLiteInterpreterGetInputTensor(interpreter, 1);
-    // TfLiteTensorCopyFromBuffer(prev_token_it, prev_token, input.size() * sizeof(float));
-
-    // TfLiteTensor* encoder_states_it = TfLiteInterpreterGetInputTensor(interpreter, 2);
-    // TfLiteTensorCopyFromBuffer(encoder_states_it, encoder_states, input.size() * sizeof(float));
-
-    // TfLiteTensor* predictor_states_it = TfLiteInterpreterGetInputTensor(interpreter, 3);
-    // TfLiteTensorCopyFromBuffer(predictor_states_it, predictor_states, input.size() * sizeof(float));
-
-    // TfLiteInterpreterInvoke(interpreter);
-
     // const TfLiteTensor* upoints_ot = TfLiteInterpreterGetOutputTensor(interpreter, 0);
     // TfLiteTensorCopyToBuffer(upoints_ot, upoints, output.size() * sizeof(unsigned int));
 
@@ -64,12 +52,21 @@ void Stream::recognize() {
         microphoneLock.lock();
         hasDataArrived.wait(microphoneLock);
 
-        std::shared_ptr<int8_t> signal = microphoneData.front();
-        microphoneData.pop();
+        TfLiteTensor* signal_it = TfLiteInterpreterGetInputTensor(interpreter, 0);
+        TfLiteTensorCopyFromBuffer(signal_it, &microphoneSignal, microphoneSignal.size() * sizeof(float));
+
         microphoneLock.unlock();
 
-        // TfLiteTensor* signal_it = TfLiteInterpreterGetInputTensor(interpreter, 0);
-        // TfLiteTensorCopyFromBuffer(signal_it, signal, signal.size() * sizeof(float));
+        TfLiteTensor* prev_token_it = TfLiteInterpreterGetInputTensor(interpreter, 1);
+        TfLiteTensorCopyFromBuffer(prev_token_it, &prev_token, 1 * sizeof(int));
+
+        TfLiteTensor* encoder_states_it = TfLiteInterpreterGetInputTensor(interpreter, 2);
+        TfLiteTensorCopyFromBuffer(encoder_states_it, &encoder_states, 8 * 2 * 1 * 1024 * sizeof(float));
+
+        TfLiteTensor* predictor_states_it = TfLiteInterpreterGetInputTensor(interpreter, 3);
+        TfLiteTensorCopyFromBuffer(predictor_states_it, &predictor_states, 1 * 2 * 1 * 512 * sizeof(float));
+
+        TfLiteInterpreterInvoke(interpreter);
 
         std::string ouput = upointToString(68);
 
@@ -79,25 +76,30 @@ void Stream::recognize() {
     }
 }
 
-int listen(void* outputbuffer, void *inputbuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData) {
+int emformer_listen(void* outputbuffer, void *inputbuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData) {
     std::cout << "Receiving..." << std::endl;
 
     Stream *stream = (Stream *)userData;
 
-    std::shared_ptr<int8_t> inputData(new int8_t[stream->segmentSize * stream->sampleSize]);
+    float *data = (float *) inputbuffer;
 
     std::unique_lock microphoneLock(stream->microphoneMutex, std::defer_lock);
 
-    // Verify frame size
-    if (numFrames != stream->segmentSize)
-	{
-		return 0;
-	}
-
-    memcpy(inputData.get(), inputbuffer, stream->segmentSize * stream->sampleSize);
+    // verify frame size
+    if (numFrames != stream->chunkSize) return 0;
 
     microphoneLock.lock();
-    stream->microphoneData.push(inputData);
+
+    // TODO: this is definitely not the fastest way to copy
+    for (unsigned int i=0; i < (numFrames + stream->rightSize); i++) {
+        if (i < stream->rightSize) {
+            stream->microphoneSignal[i] = stream->futureMicrophoneSignal[i];
+            continue;
+        }
+        stream->microphoneSignal[i] = data[i];
+    }
+    stream->futureMicrophoneSignal = std::vector<float>(stream->microphoneSignal.end() - stream->rightSize, stream->microphoneSignal.end());
+
     // Manual unlocking is done before notifying, to avoid waking up the waiting thread only to block again
     microphoneLock.unlock();
     stream->hasDataArrived.notify_one();
@@ -133,21 +135,12 @@ Stream::Stream(const Napi::CallbackInfo& info) :
     encoderType((Encoder)(int)info[0].As<Napi::Number>()),
     chunkSize((unsigned int)info[1].As<Napi::Number>()),
     rightSize((unsigned int)info[2].As<Napi::Number>()),
-    segmentSize(chunkSize + rightSize),
-    format((int)info[3].As<Napi::Number>()),
-    sampleSize(getSampleSize(format))
+    segmentSize(chunkSize + rightSize)
 {
     Napi::Env env = info.Env();
 
     if (info.Length() < 2) {
         Napi::Error::New(env, "Expected two arguments; `numFrames` and `encoderType`.").ThrowAsJavaScriptException();
-        return;
-    }
-
-    if(encoderType == Encoder::EMFORMER) {
-        // TODO: get these params as one object instead of separate arguments
-    } else {
-        Napi::Error::New(env, "This encoder is not supported yet.").ThrowAsJavaScriptException();
         return;
     }
 
@@ -157,6 +150,8 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         Napi::Error::New(env, "Model could not be loaded.").ThrowAsJavaScriptException();
         return;
     }
+
+    microphoneSignal = std::vector<float>(segmentSize, 0);
 
     options = TfLiteInterpreterOptionsCreate();
     TfLiteInterpreterOptionsSetNumThreads(options, 2);
@@ -177,12 +172,20 @@ Stream::Stream(const Napi::CallbackInfo& info) :
     parameters.deviceId = rtAudio->getDefaultInputDevice();
     parameters.nChannels = 1;
     unsigned int sampleRate = 16000;
-    unsigned int numFrames = segmentSize;
+    
+    if(encoderType == Encoder::EMFORMER) {
+        unsigned int numFrames = chunkSize;
+        
+        futureMicrophoneSignal = std::vector<float>(rightSize, 0);        
 
-    try {
-        rtAudio->openStream(NULL, &parameters, RTAUDIO_FLOAT32, sampleRate, &numFrames, &listen, this);
-    } catch(RtAudioError& e) {
-        Napi::Error::New(env, e.getMessage()).ThrowAsJavaScriptException();
+        try {
+            rtAudio->openStream(NULL, &parameters, RTAUDIO_FLOAT32, sampleRate, &numFrames, &emformer_listen, this);
+        } catch(RtAudioError& e) {
+            Napi::Error::New(env, e.getMessage()).ThrowAsJavaScriptException();
+            return;
+        }
+    } else {
+        Napi::Error::New(env, "This encoder is not supported yet.").ThrowAsJavaScriptException();
         return;
     }
 }
@@ -263,29 +266,4 @@ void Stream::stop(const Napi::CallbackInfo& info) {
     std::cout << "Stream has been stopped." << std::endl;
 
     if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
-}
-
-unsigned int Stream::getSampleSize(RtAudioFormat format)
-{
-	switch (format)
-	{
-	case RTAUDIO_SINT8:
-		return 1;
-
-	case RTAUDIO_SINT16:
-		return 2;
-
-	case RTAUDIO_SINT24:
-		return 3;
-
-	case RTAUDIO_SINT32:
-	case RTAUDIO_FLOAT32:
-		return 4;
-
-	case RTAUDIO_FLOAT64:
-		return 8;
-
-	default:
-		return 0;
-	}
 }

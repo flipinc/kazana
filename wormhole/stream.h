@@ -1,7 +1,7 @@
 #ifndef STREAM_H
 #define STREAM_H
 
-#include <queue>
+#include <vector>
 #include <condition_variable>
 
 #include <napi.h>
@@ -77,7 +77,7 @@ class Stream : public Napi::ObjectWrap<Stream> {
          */
         void stop(const Napi::CallbackInfo& info);
 
-        friend int listen(void *outputBuffer, void *inputBuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData);
+        friend int emformer_listen(void *outputBuffer, void *inputBuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData);
 
     private:
         std::shared_ptr<RtAudio> rtAudio;
@@ -85,16 +85,14 @@ class Stream : public Napi::ObjectWrap<Stream> {
         bool isPokariRunnable;
         bool isLoopbackEnabled;
 
-        const RtAudioFormat format;
-        const unsigned int sampleSize;
-
         std::condition_variable hasDataArrived;
-
-        std::queue<std::shared_ptr<int8_t>> microphoneData;
+ 
+        std::vector<float> microphoneSignal;
 
         const Encoder encoderType;
 
         // for emformer model
+        std::vector<float> futureMicrophoneSignal;
         const unsigned int rightSize;
         const unsigned int chunkSize;
 
@@ -118,7 +116,12 @@ class Stream : public Napi::ObjectWrap<Stream> {
         TfLiteInterpreterOptions* options;
 
         void recognize();
-        // void* prev_token, void* encoder_states, void* predictor_states, void* upoints
+
+        // ref: https://stackoverflow.com/questions/59424842/how-to-give-multi-dimensional-inputs-to-tflite-via-c-api
+        // ref: https://stackoverflow.com/questions/56222822/how-to-set-input-with-image-for-tensorflow-lite-in-c
+        unsigned int prev_token{0};
+        float encoder_states[8][2][1][1024] {};
+        float predictor_states[1][2][1][512] {};
 
         unsigned int getSampleSize(RtAudioFormat format);
 

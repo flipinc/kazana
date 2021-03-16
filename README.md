@@ -32,12 +32,22 @@ run src/main/stream.js
 pip3 install numpy
 cd vendor/tensorflow
 git checkout v2.3.2 # Original TFLite files are created at this version
-python3 configure.py # Default options are fine
-bazel build -c opt --config=opt //tensorflow/lite/c:tensorflowlite_c
-# or for xnnpack support,
-bazel build -c opt --config=opt --define tflite_with_xnnpack=true //tensorflow/lite/c:tensorflowlite_c
+python3 configure.py # Default options (n for everything) are fine
+
+nano tensorflow/lite/c/BUILD
+# Insert a following line at `tflite_cc_shared_object`, 
+# deps = [
+#    ":c_api",
+#    ":c_api_experimental",
+#    ":exported_symbols.lds",
+#    ":version_script.lds",
+#    "//tensorflow/lite/delegates/flex:delegate" # added
+# ],
+
+bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --define=tflite_with_xnnpack=true --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+
 cd /workspace # go back to root
-cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/<target_architecture>
+cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/linux_x86_x64_xnnpack
 ```
 
 ### Why C instead of C++ or Python?
@@ -50,7 +60,6 @@ cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/<tar
 - Less control on threading management, which will be super importannt for on-device implementation.
 - Does not support TFLite delegate
 
-
 ### Electron Build
 https://github.com/cmake-js/cmake-js/issues/222
 
@@ -61,3 +70,4 @@ https://github.com/cmake-js/cmake-js/issues/222
 - https://github.com/tensorflow/tensorflow/issues/38852
 - https://github.com/tensorflow/tensorflow/issues/33634
 - https://www.youtube.com/watch?v=dox1ZkFP-f4
+- https://github.com/PINTO0309/TensorflowLite-flexdelegate
