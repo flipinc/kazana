@@ -1,6 +1,9 @@
 #ifndef STREAM_H
 #define STREAM_H
 
+#include <queue>
+#include <condition_variable>
+
 #include <napi.h>
 #include <RtAudio.h>
 
@@ -74,11 +77,20 @@ class Stream : public Napi::ObjectWrap<Stream> {
          */
         void stop(const Napi::CallbackInfo& info);
 
+        friend int listen(void *outputBuffer, void *inputBuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData);
+
     private:
         std::shared_ptr<RtAudio> rtAudio;
 
         bool isPokariRunnable;
         bool isLoopbackEnabled;
+
+        const RtAudioFormat format;
+        const unsigned int sampleSize;
+
+        std::condition_variable hasDataArrived;
+
+        std::queue<std::shared_ptr<int8_t>> microphoneData;
 
         const Encoder encoderType;
 
@@ -98,10 +110,17 @@ class Stream : public Napi::ObjectWrap<Stream> {
         std::string microphoneState;
         std::string pokariState;
 
-        TfLiteInterpreter* interpreter;
+        std::mutex microphoneMutex;
+        std::mutex loopbackMutex;
 
-        // int listen(void* outputbuffer, void *inputbuffer, unsigned int bufferFrames, double streamTime, RtAudioStreamStatus status, void *userData);
-        void recognize(void* signal, void* prev_token, void* encoder_states, void* predictor_states, void* upoints);
+        TfLiteModel* model;
+        TfLiteInterpreter* interpreter;
+        TfLiteInterpreterOptions* options;
+
+        void recognize();
+        // void* prev_token, void* encoder_states, void* predictor_states, void* upoints
+
+        unsigned int getSampleSize(RtAudioFormat format);
 
         std::mutex threadsFnMutex;
         // Napi::ThreadSafeFunction stateChangeCallback;
@@ -113,7 +132,7 @@ class Stream : public Napi::ObjectWrap<Stream> {
          * Args:
          *  time_lapsed (float)
          */
-        Napi::Value test(const Napi::CallbackInfo& info);
+        // Napi::Value test(const Napi::CallbackInfo& info);
 };
 
 #endif
