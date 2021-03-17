@@ -30,7 +30,9 @@ jobs:
       # TODO: build tensorflow library
       
       - name: Build binaries
-        run: yarn run build-binaries
+        run: |
+          yarn add run-script-os
+          yarn run build-binaries
 
       # TODO: download a tflite model from s3
 
