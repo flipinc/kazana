@@ -28,7 +28,25 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get install libasound2 libasound2-dev libpulse-dev
 
-      # TODO: build tensorflow library
+      - name: Init submodule
+        run: git submodule update -i
+
+      - name: Install perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.32'
+
+      - name: Make a patch to tensorflow
+        run: |
+          perl -i -l -p -e 'print "features = ['windows_export_all_symbols']," if $. == 24' vendor/tensorflow/tensorflow/lite/c/BUILD
+          perl -i -l -p -e 'print "\"//tensorflow/lite/delegates/flex:delegate\"" if $. == 44' vendor/tensorflow/tensorflow/lite/c/BUILD
+
+      - name: Build tensorflow library
+        run: |
+          cd vendor/tensorflow
+          bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 \
+            --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+          cd ../..
       
       - name: Build binaries
         run: |
