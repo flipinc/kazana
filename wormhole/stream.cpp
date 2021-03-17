@@ -141,7 +141,7 @@ Napi::Object Stream::Init(Napi::Env env, Napi::Object exports) {
     // ref: https://github.com/electron/electron/issues/24248
     env.SetInstanceData(constructor); 
 
-    exports.Set("Stream", func);
+    exports.Set(Napi::String::New(env, "Stream"), func);
     return exports;
 }
 

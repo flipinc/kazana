@@ -61,8 +61,6 @@ type ConnStates =
   | "logout"
   | "no-network";
 
-type KIKIAction = "message";
-
 type KIKIMessage = {
   action:
     | "ping"
