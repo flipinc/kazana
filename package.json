@@ -35,7 +35,11 @@
     "start": "npm-run-all --parallel dev serve",
     "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix ./src",
     "dist": "NODE_ENV=production yarn build && electron-builder build",
-    "install:wormhole": "cmake-js compile -r electron --runtime-version=11.3.0 -O out"
+    "rebuild:wormhole": "cmake-js compile -r electron --runtime-version=11.0.0 -O out",
+    "install:wormhole": "prebuild-install || npm run rebuild:wormhole",
+    "build-binaries": "run-script-os",
+    "build-binaries:win32": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u %GITHUB_TOKEN%",
+    "build-binaries:darwin:linux": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u $GITHUB_TOKEN"
   },
   "keywords": [],
   "license": "ISC",
@@ -91,7 +95,9 @@
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.2.0",
     "npm-run-all": "^4.1.5",
+    "prebuild": "^10.0.1",
     "prettier": "^2.2.1",
+    "run-script-os": "^1.1.5",
     "source-map-support": "^0.5.19",
     "style-loader": "^2.0.0",
     "typescript": "^4.2.3",

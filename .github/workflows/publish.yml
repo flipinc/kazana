@@ -12,6 +12,9 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v1
@@ -21,8 +24,15 @@ jobs:
         with:
           node-version: 14
 
+      - name: Install alsa and pulse audio on linux
+        run: if ["$RUNNER_OS" = "Linux"]; then sudo apt-get install libasound2 libasound2-dev libpulse-dev ; fi
+
+      # TODO: build tensorflow library
+      
+      - name: Build binaries
+        run: yarn run build-binaries
+
       # TODO: download a tflite model from s3
-      # TODO: add model file to /external
 
       - name: Build/release Electron app
         uses: samuelmeuli/action-electron-builder@v1
