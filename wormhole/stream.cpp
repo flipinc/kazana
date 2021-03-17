@@ -33,55 +33,76 @@ std::string upointToString(int cp) {
     return std::string(c);
 }
 
+template <typename T>
+Napi::Array arrayFromVector(Napi::Env env, std::vector<T> items) {
+    Napi::Array array = Napi::Array::New(env, items.size());
+
+    // For each element, convert it to Napi::Value and add it
+    for (int i = 0; i < items.size(); i++) {
+        array[i] = Napi::Value::From(env, items[i]);
+    }
+
+    return array;
+};
+
+/**
+ * Note: if input_data_size != TfLiteTensorByteSize(tensor), the interpreter does not give any error,
+ * instead it outputs zero.
+ */
 void Stream::recognize() {
-    // const TfLiteTensor* upoints_ot = TfLiteInterpreterGetOutputTensor(interpreter, 0);
-    // TfLiteTensorCopyToBuffer(upoints_ot, upoints, output.size() * sizeof(unsigned int));
-
-    // const TfLiteTensor* prev_token_ot = TfLiteInterpreterGetOutputTensor(interpreter, 1);
-    // TfLiteTensorCopyToBuffer(prev_token_ot, prev_token, output.size() * sizeof(unsigned int));
-
-    // const TfLiteTensor* encoder_states_ot = TfLiteInterpreterGetOutputTensor(interpreter, 2);
-    // TfLiteTensorCopyToBuffer(encoder_states_ot, encoder_states, output.size() * sizeof(float));
-
-    // const TfLiteTensor* predictor_states_ot = TfLiteInterpreterGetOutputTensor(interpreter, 3);
-    // TfLiteTensorCopyToBuffer(predictor_states_ot, predictor_states, output.size() * sizeof(float));
-
     std::unique_lock microphoneLock(microphoneMutex, std::defer_lock);
 
     while (1) {
         microphoneLock.lock();
         hasDataArrived.wait(microphoneLock);
 
-        TfLiteTensor* signal_it = TfLiteInterpreterGetInputTensor(interpreter, 0);
-        TfLiteTensorCopyFromBuffer(signal_it, &microphoneSignal, microphoneSignal.size() * sizeof(float));
+        // std::cout << "tensor in: " << microphoneSignal[60] << std::endl;
+
+        TfLiteTensor* signalIt = TfLiteInterpreterGetInputTensor(interpreter, 0);
+        TfLiteTensorCopyFromBuffer(signalIt, &microphoneSignal, microphoneSignal.size() * sizeof(float));
 
         microphoneLock.unlock();
 
-        TfLiteTensor* prev_token_it = TfLiteInterpreterGetInputTensor(interpreter, 1);
-        TfLiteTensorCopyFromBuffer(prev_token_it, &prev_token, 1 * sizeof(int));
+        TfLiteTensor* prevTokenIt = TfLiteInterpreterGetInputTensor(interpreter, 1);
+        TfLiteTensorCopyFromBuffer(prevTokenIt, &prevToken, 1 * sizeof(int));
 
-        TfLiteTensor* encoder_states_it = TfLiteInterpreterGetInputTensor(interpreter, 2);
-        TfLiteTensorCopyFromBuffer(encoder_states_it, &encoder_states, 8 * 2 * 1 * 1024 * sizeof(float));
+        TfLiteTensor* encoderStatesIt = TfLiteInterpreterGetInputTensor(interpreter, 2);
+        TfLiteTensorCopyFromBuffer(encoderStatesIt, &encoderStates, 2 * 18 * 1 * 20 * 8 * 64 * sizeof(float));
 
-        TfLiteTensor* predictor_states_it = TfLiteInterpreterGetInputTensor(interpreter, 3);
-        TfLiteTensorCopyFromBuffer(predictor_states_it, &predictor_states, 1 * 2 * 1 * 512 * sizeof(float));
+        TfLiteTensor* predictorStatesIt = TfLiteInterpreterGetInputTensor(interpreter, 3);
+        TfLiteTensorCopyFromBuffer(predictorStatesIt, &predictorStates, 1 * 2 * 1 * 512 * sizeof(float));
 
         TfLiteInterpreterInvoke(interpreter);
 
-        std::string ouput = upointToString(68);
+        const TfLiteTensor* upointsOt = TfLiteInterpreterGetOutputTensor(interpreter, 0);
+        unsigned int upointLength = TfLiteTensorDim(upointsOt, 0);
+        int upoints[upointLength];
+        TfLiteTensorCopyToBuffer(upointsOt, upoints, upointLength * sizeof(int));
 
-        recognizeCallback.NonBlockingCall([ouput](Napi::Env env, Napi::Function callback) {
-            callback.Call({Napi::String::New(env, ouput)});
+        const TfLiteTensor* prevTokenOt = TfLiteInterpreterGetOutputTensor(interpreter, 1);
+        TfLiteTensorCopyToBuffer(prevTokenOt, &prevToken, 1 * sizeof(unsigned int));
+
+        const TfLiteTensor* encoderStatesOt = TfLiteInterpreterGetOutputTensor(interpreter, 2);
+        TfLiteTensorCopyToBuffer(encoderStatesOt, &encoderStates, 2 * 18 * 1 * 20 * 8 * 64 * sizeof(float));
+
+        const TfLiteTensor* predictorStatesOt = TfLiteInterpreterGetOutputTensor(interpreter, 3);
+        TfLiteTensorCopyToBuffer(predictorStatesOt, &predictorStates, 1 * 2 * 1 * 512 * sizeof(float));
+
+        std::string result = "";
+        for(unsigned int i=0; i < upointLength; i++) {
+            result = result + upointToString(upoints[i]);
+        }
+
+        recognizeCallback.NonBlockingCall([result](Napi::Env env, Napi::Function callback) {
+            callback.Call({Napi::String::New(env, result)});
         });
     }
 }
 
-int emformer_listen(void* outputbuffer, void *inputbuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData) {
-    std::cout << "Receiving..." << std::endl;
-
+int emformer_listen(void* outputBuffer, void *inputBuffer, unsigned int numFrames, double streamTime, RtAudioStreamStatus status, void *userData) {
     Stream *stream = (Stream *)userData;
 
-    float *data = (float *) inputbuffer;
+    float *data = (float *) inputBuffer;
 
     std::unique_lock microphoneLock(stream->microphoneMutex, std::defer_lock);
 
@@ -90,7 +111,7 @@ int emformer_listen(void* outputbuffer, void *inputbuffer, unsigned int numFrame
 
     microphoneLock.lock();
 
-    // TODO: this is definitely not the fastest way to copy
+    // TODO: this is definitely not the fastest way to copy -> use memcpy
     for (unsigned int i=0; i < (numFrames + stream->rightSize); i++) {
         if (i < stream->rightSize) {
             stream->microphoneSignal[i] = stream->futureMicrophoneSignal[i];
@@ -99,6 +120,7 @@ int emformer_listen(void* outputbuffer, void *inputbuffer, unsigned int numFrame
         stream->microphoneSignal[i] = data[i];
     }
     stream->futureMicrophoneSignal = std::vector<float>(stream->microphoneSignal.end() - stream->rightSize, stream->microphoneSignal.end());
+    // std::cout << "tensor out: " << stream->microphoneSignal[60] << std::endl;
 
     // Manual unlocking is done before notifying, to avoid waking up the waiting thread only to block again
     microphoneLock.unlock();
@@ -110,6 +132,9 @@ int emformer_listen(void* outputbuffer, void *inputbuffer, unsigned int numFrame
 Napi::Object Stream::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "Stream", {
         InstanceMethod("onRecognize", &Stream::onRecognize),
+        InstanceMethod("getDevices", &Stream::getDevices),
+        InstanceMethod("getDefaultInputDevice", &Stream::getDefaultInputDevice),
+        InstanceMethod("getDefaultOutputDevice", &Stream::getDefaultOutputDevice),
         InstanceMethod("start", &Stream::start),
         InstanceMethod("stop", &Stream::stop),
     });
@@ -144,7 +169,7 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         return;
     }
 
-    const char* model_path = "/home/keisuke26/Documents/Chief/ekaki/kazana/pokari/rnnt_char.tflite";
+    const char* model_path = "/home/keisuke26/Documents/Chief/ekaki/kazana/pokari/emformer_char3265_mini_stack.tflite";
     model = TfLiteModelCreateFromFile(model_path);
     if (model == nullptr) {
         Napi::Error::New(env, "Model could not be loaded.").ThrowAsJavaScriptException();
@@ -162,14 +187,14 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         return;
     }
     
-    TfLiteInterpreterResizeInputTensor(interpreter, 0, (int*)(&segmentSize), 1);
+    TfLiteInterpreterResizeInputTensor(interpreter, 0, (int *)(&segmentSize), 1);
     TfLiteInterpreterAllocateTensors(interpreter);
 
     rtAudio = std::make_shared<RtAudio>();
 
     // microphone
     RtAudio::StreamParameters parameters;
-    parameters.deviceId = rtAudio->getDefaultInputDevice();
+    parameters.deviceId = rtAudio->getDefaultOutputDevice();
     parameters.nChannels = 1;
     unsigned int sampleRate = 16000;
     
@@ -203,6 +228,58 @@ Stream::~Stream() {
     TfLiteModelDelete(model);
 }
 
+Napi::Value Stream::getDevices(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+	Napi::Array devicesArray;
+	std::vector<RtAudio::DeviceInfo> devices;
+
+	// Determine the number of devices available
+	unsigned int deviceCount = rtAudio->getDeviceCount();
+
+	// Scan through devices for various capabilities
+	RtAudio::DeviceInfo device;
+	for (unsigned int i = 0; i < deviceCount; i++)
+	{
+		// Get the device's info
+		device = rtAudio->getDeviceInfo(i);
+
+		// If the device is probed
+		if (device.probed) {
+			devices.push_back(device);
+		}
+	}
+
+	// Allocate the devices array
+	devicesArray = Napi::Array::New(env, devices.size());
+
+	// Convert the devices to objects
+	for (unsigned int i = 0; i < devices.size(); i++) {
+        Napi::Object devInfo = Napi::Object::New(env);
+
+        // Set all properties in the object
+        devInfo.Set("name", devices[i].name);
+        devInfo.Set("outputChannels", devices[i].outputChannels);
+        devInfo.Set("inputChannels", devices[i].inputChannels);
+        devInfo.Set("duplexChannels", devices[i].duplexChannels);
+        devInfo.Set("isDefaultOutput", devices[i].isDefaultOutput);
+        devInfo.Set("isDefaultInput", devices[i].isDefaultInput);
+        devInfo.Set("sampleRates", arrayFromVector(env, devices[i].sampleRates));
+        devInfo.Set("preferredSampleRate", devices[i].preferredSampleRate);
+        devInfo.Set("nativeFormats", devices[i].nativeFormats);
+
+        devicesArray[i] = devInfo;
+	}
+
+	return devicesArray;
+}
+
+Napi::Value Stream::getDefaultInputDevice(const Napi::CallbackInfo &info) {
+	return Napi::Number::New(info.Env(), rtAudio->getDefaultInputDevice());
+}
+
+Napi::Value Stream::getDefaultOutputDevice(const Napi::CallbackInfo &info) {
+	return Napi::Number::New(info.Env(), rtAudio->getDefaultOutputDevice());
+}
 
 void Stream::onRecognize(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();

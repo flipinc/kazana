@@ -60,10 +60,11 @@ class Stream : public Napi::ObjectWrap<Stream> {
 
         /**
          * Get all devices in PC
-         * Returns:
-         *  devices (str[])
          */
-        // Napi::Value getDevices(const Napi::CallbackInfo& info);
+        Napi::Value getDevices(const Napi::CallbackInfo& info);
+
+        Napi::Value getDefaultInputDevice(const Napi::CallbackInfo& info);
+	    Napi::Value getDefaultOutputDevice(const Napi::CallbackInfo& info);
 
         /**
          * Starts recording and recognition
@@ -119,9 +120,10 @@ class Stream : public Napi::ObjectWrap<Stream> {
 
         // ref: https://stackoverflow.com/questions/59424842/how-to-give-multi-dimensional-inputs-to-tflite-via-c-api
         // ref: https://stackoverflow.com/questions/56222822/how-to-set-input-with-image-for-tensorflow-lite-in-c
-        unsigned int prev_token{0};
-        float encoder_states[8][2][1][1024] {};
-        float predictor_states[1][2][1][512] {};
+        unsigned int prevToken{0};
+        float encoderStates[2][18][1][20][8][64] {}; // emformer
+        // float encoder_states[8][2][1][1024] {}; // rnnt
+        float predictorStates[1][2][1][512] {};
 
         unsigned int getSampleSize(RtAudioFormat format);
 
