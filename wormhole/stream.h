@@ -88,12 +88,14 @@ class Stream : public Napi::ObjectWrap<Stream> {
 
         std::condition_variable hasDataArrived;
  
-        std::vector<float> microphoneSignal;
+        float* microphoneSignal;
+        // std::shared_ptr<float[]> microphoneSignal;
 
         const Encoder encoderType;
 
         // for emformer model
-        std::vector<float> futureMicrophoneSignal;
+        float* futureMicrophoneSignal;
+        // std::shared_ptr<float[]> futureMicrophoneSignal;
         const unsigned int rightSize;
         const unsigned int chunkSize;
 
