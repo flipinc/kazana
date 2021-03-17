@@ -24,14 +24,18 @@ jobs:
         with:
           node-version: 14
 
+      - name: Get specific version CMake
+        uses: lukka/get-cmake@v3.16.3
+          
       - name: Install alsa and pulse audio on linux
-        run: if ["$RUNNER_OS" = "Linux"]; then sudo apt-get install libasound2 libasound2-dev libpulse-dev ; fi
+          if: matrix.os == 'ubuntu-latest'
+            run: sudo apt-get install libasound2 libasound2-dev libpulse-dev
 
       # TODO: build tensorflow library
       
       - name: Build binaries
         run: |
-          yarn add run-script-os
+          yarn install
           yarn run build-binaries
 
       # TODO: download a tflite model from s3
