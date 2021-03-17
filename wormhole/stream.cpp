@@ -2,6 +2,7 @@
 #include <locale>
 #include <codecvt>
 #include <vector>
+#include <array>
 
 #include <napi.h>
 #include <RtAudio.h>
@@ -47,7 +48,7 @@ Napi::Array arrayFromVector(Napi::Env env, std::vector<T> items) {
 
 /**
  * Note: if input_data_size != TfLiteTensorByteSize(tensor), the interpreter does not give any error,
- * instead it outputs zero.
+ * instead it outputs 0 for upoint every time. This makes it really hard to debug.
  */
 void Stream::recognize() {
     std::unique_lock microphoneLock(microphoneMutex, std::defer_lock);
@@ -56,10 +57,9 @@ void Stream::recognize() {
         microphoneLock.lock();
         hasDataArrived.wait(microphoneLock);
 
-        // std::cout << "tensor in: " << microphoneSignal[60] << std::endl;
-
         TfLiteTensor* signalIt = TfLiteInterpreterGetInputTensor(interpreter, 0);
-        TfLiteTensorCopyFromBuffer(signalIt, &microphoneSignal, microphoneSignal.size() * sizeof(float));
+        unsigned int signalLength = TfLiteTensorDim(signalIt, 0);
+        TfLiteTensorCopyFromBuffer(signalIt, microphoneSignal, signalLength * sizeof(float));
 
         microphoneLock.unlock();
 
@@ -111,16 +111,9 @@ int emformer_listen(void* outputBuffer, void *inputBuffer, unsigned int numFrame
 
     microphoneLock.lock();
 
-    // TODO: this is definitely not the fastest way to copy -> use memcpy
-    for (unsigned int i=0; i < (numFrames + stream->rightSize); i++) {
-        if (i < stream->rightSize) {
-            stream->microphoneSignal[i] = stream->futureMicrophoneSignal[i];
-            continue;
-        }
-        stream->microphoneSignal[i] = data[i];
-    }
-    stream->futureMicrophoneSignal = std::vector<float>(stream->microphoneSignal.end() - stream->rightSize, stream->microphoneSignal.end());
-    // std::cout << "tensor out: " << stream->microphoneSignal[60] << std::endl;
+    memcpy(stream->microphoneSignal, stream->futureMicrophoneSignal, sizeof(float) * stream->rightSize);
+    memcpy(stream->microphoneSignal + stream->rightSize, data, sizeof(float) * numFrames);
+    memcpy(stream->futureMicrophoneSignal, data + (numFrames-stream->rightSize), sizeof(float) * stream->rightSize);
 
     // Manual unlocking is done before notifying, to avoid waking up the waiting thread only to block again
     microphoneLock.unlock();
@@ -176,7 +169,7 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         return;
     }
 
-    microphoneSignal = std::vector<float>(segmentSize, 0);
+    microphoneSignal = new float[segmentSize]{};
 
     options = TfLiteInterpreterOptionsCreate();
     TfLiteInterpreterOptionsSetNumThreads(options, 2);
@@ -200,8 +193,7 @@ Stream::Stream(const Napi::CallbackInfo& info) :
     
     if(encoderType == Encoder::EMFORMER) {
         unsigned int numFrames = chunkSize;
-        
-        futureMicrophoneSignal = std::vector<float>(rightSize, 0);        
+        futureMicrophoneSignal = new float[rightSize]{};
 
         try {
             rtAudio->openStream(NULL, &parameters, RTAUDIO_FLOAT32, sampleRate, &numFrames, &emformer_listen, this);
@@ -220,6 +212,9 @@ Stream::Stream(const Napi::CallbackInfo& info) :
  */
 Stream::~Stream() {
     std::cout << "Running destructor..." << std::endl;
+
+    delete microphoneSignal;
+    delete futureMicrophoneSignal;
 
     if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
 
@@ -298,29 +293,13 @@ void Stream::start(const Napi::CallbackInfo& info) {
      * If a target device does not support target format, RtAudio automatically
      * converts native format to target format.
      * 
-     * duplex streams run on one thread whereas two streams run by two instances run on
+     * Duplex streams run on one thread whereas two streams run by two instances run on
      * two threads
      * 
-     * bufferFrames must be a power of two
+     * BufferFrames is preferred to be a power of two
      * 
      * ref: https://www.music.mcgill.ca/~gary/rtaudio/settings.html
      */
-
-    // 0 If stream is already running do nothing
-
-    // 1.1 Initialize microphone device
-
-    // 1.2 Chech if default microphone device has 16000Hz in supported sample rates
-    // if not, use the default sample rate
-
-    // 2.1 Check if the platform is Windows and supports WASAPI
-    // if not, skip 2
-
-    // 2.2 Initialize loopback device
-
-    // 2.3 Chech if default loopback device has 16000Hz in supported sample rates
-    // if not, use the default sample rate
-
     Napi::Env env = info.Env();
 
     if (recognizeCallback == nullptr) {
@@ -342,5 +321,5 @@ void Stream::start(const Napi::CallbackInfo& info) {
 void Stream::stop(const Napi::CallbackInfo& info) {
     std::cout << "Stream has been stopped." << std::endl;
 
-    if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
+    if (rtAudio->isStreamOpen()) rtAudio->closeStream();
 }
