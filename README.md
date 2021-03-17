@@ -18,12 +18,16 @@ docker run -it --rm -v ${PWD}:/workspace kazana/wormhole /bin/bash
 ```
 
 ### Build TFLite Interpreter for C
+#### Preprocessing
 ```shell
 pip3 install numpy
 cd vendor/tensorflow
 git checkout v2.3.2 # Original TFLite files are created at this version
-python3 configure.py # Default options (n for everything) are fine
+python3 configure.py # Default options (N for everything)
+```
 
+#### Native
+```shell
 nano tensorflow/lite/c/BUILD
 # Insert a following line at `tflite_cc_shared_object`, 
 # deps = [
@@ -35,17 +39,35 @@ nano tensorflow/lite/c/BUILD
 # ],
 
 bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+```
 
+#### Windows
+```shell
+nano tensorflow/lite/c/BUILD
+# Insert a following line at `tflite_cc_shared_object`, 
+# features = ["windows_export_all_symbols"]
+
+bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --config=windows --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+```
+
+#### MacOS (x86_64)
+```shell
+bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+```
+
+#### Postprocessing
+```shell
 cd /workspace # go back to root
 cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/linux_x86_x64
 ```
 
 ### Limitations
 - XNNPack delegate cannot be used because it only supports static-sized tensors (All ASR models output dynamic sized unicode point).
+- In python, you can easily download python wheel for different plaforms (![see](https://www.tensorflow.org/lite/guide/python)), but for C++ prebuilts are not available.
 
 ### Why C instead of C++ or Python?
 #### C++
-- Building TFLite interpreter for C++ requires aligning compilation environment with other compiles libraries.
+- Building TFLite interpreter for C++ requires compatible ABI and stdlib with other compiled libraries (![see](https://github.com/tensorflow/tensorflow/issues/33634#issuecomment-596771602)).
 
 #### Python
 - Integration with Node.js is just so terrible

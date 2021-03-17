@@ -1,4 +1,5 @@
 import Websocket from "ws";
+import bindings from "bindings";
 
 /**
  * Since clearTimeout only accepts `number` and ReturnType<typeof setTimeout> does not work, this is a workaround
@@ -16,35 +17,30 @@ interface CustomWebsocket extends Websocket {
 export default class Socket {
   socket: CustomWebsocket | null;
 
-  callbacks: { [action in KIKIAction]: ((payload: any) => void) | null };
+  messageCallback: ((payload: KIKIMessage) => void) | null;
+
+  stream: Stream; // TODO
 
   constructor() {
     this.socket = null;
-    this.callbacks = {
-      message: null,
-    };
+    this.messageCallback = null;
+
+    const addon: Wormhole = bindings("wormhole");
+    const encoderType = 0; // emformer
+    const chunkSize = 20480; // 16000 (sample_rate) x 1.28
+    const rightSize = 5120; // 16000 (sample_rate) x 0.32
+    this.stream = new addon.Stream(encoderType, chunkSize, rightSize);
   }
 
   /**
-   * Register callbacks exposed
-   * @param action
-   * @param callback
+   * Register callbacks
    */
   onMessage(callback: (payload: KIKIMessage) => void) {
-    this.callbacks.message = callback;
+    this.messageCallback = callback;
   }
 
-  private execute(action: KIKIAction, message?: KIKIMessage) {
-    switch (action) {
-      case "message":
-        if (!this.callbacks.message) {
-          throw Error("Callback for `message` is not registered.");
-        }
-        this.callbacks.message(message);
-        break;
-      default:
-        break;
-    }
+  onRecognize(callback: (transcript: string) => void) {
+    this.stream.onRecognize(callback);
   }
 
   heartbeat() {
@@ -53,8 +49,10 @@ export default class Socket {
     clearTimeout(this.socket.pingTimeout);
     this.socket.pingTimeout = (setTimeout(() => {
       if (!this.socket) return;
+      if (this.messageCallback) {
+        this.messageCallback({ action: "kiki-disconnected" });
+      }
 
-      this.execute("message", { action: "kiki-disconnected" });
       this.socket.close();
       this.socket = null;
     }, 30000 + 1000) as unknown) as number;
@@ -74,7 +72,10 @@ export default class Socket {
     );
 
     this.socket.onopen = () => {
-      this.execute("message", { action: "kiki-connected" });
+      if (this.messageCallback) {
+        this.messageCallback({ action: "kiki-connected" });
+      }
+
       this.heartbeat();
     };
 
@@ -94,11 +95,20 @@ export default class Socket {
           this.heartbeat();
           this.socket.send(JSON.stringify({ action: "pong" }));
           break;
+        case "start-talk":
+          this.stream.start();
+          break;
         default:
-          this.execute("message", msg);
+          if (this.messageCallback) {
+            this.messageCallback(msg);
+          }
           break;
       }
     };
+  }
+
+  disconnect() {
+    this.stream.stop();
   }
 
   close() {
