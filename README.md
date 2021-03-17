@@ -7,24 +7,14 @@ After runinng `git clone`, run following commands
 git submodule update -i
 ```
 
-### Some Notes
-- Many configs are shared with ![EKAKI's Web Application](https://github.com/chief-co-jp/ekaki). In the future, this library will be fused into the web application.
-
 ## Wormhole | Audio Handler for KAZANA
 Wormhole consists of two components: Audio APIs, TFLite interpreter.
 
 ### Run in container
-There are many installations required for setting up Wormhole's environment.
+Usually, I work with a Docker container for building and a local environment for testing audio.
 ```shell
-docker build -t kazana/wormhole -f Dockerfile . # Dockerfile.<architecture>
+docker build -t kazana/wormhole -f Dockerfile.<platform> .
 docker run -it --rm -v ${PWD}:/workspace kazana/wormhole /bin/bash
-```
-
-### Debuggin Wormhole
-Install gdb in your local PC and run,
-```shell
-gdb node
-run src/main/stream.js
 ```
 
 ### Build TFLite Interpreter for C
@@ -44,16 +34,18 @@ nano tensorflow/lite/c/BUILD
 #    "//tensorflow/lite/delegates/flex:delegate" # added
 # ],
 
-bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --define=tflite_with_xnnpack=true --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
+bazel build --config=opt --config=monolithic --config=noaws --config=nohdfs --config=nonccl --config=v2 --define=tflite_convert_with_select_tf_ops=true --define=with_select_tf_ops=true //tensorflow/lite/c:tensorflowlite_c
 
 cd /workspace # go back to root
-cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/linux_x86_x64_xnnpack
+cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/linux_x86_x64
 ```
+
+### Limitations
+- XNNPack delegate cannot be used because it only supports static-sized tensors (All ASR models output dynamic sized unicode point).
 
 ### Why C instead of C++ or Python?
 #### C++
-- Building TFLite interpreter for C++ requires sensitive compilation environment in order to linking TFLite & others.
-- Bundle size is bigger (TODO: this is not still numerically confirmed).
+- Building TFLite interpreter for C++ requires aligning compilation environment with other compiles libraries.
 
 #### Python
 - Integration with Node.js is just so terrible
@@ -62,6 +54,9 @@ cp vendor/tensorflow/bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so lib/linu
 
 ### Electron Build
 https://github.com/cmake-js/cmake-js/issues/222
+
+### Some Notes
+- Many configs are shared with ![EKAKI's Web Application](https://github.com/chief-co-jp/ekaki). In the future, this library will be fused into the web application.
 
 ### Some useful resources on TFLite
 - https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/c/c_api.h
