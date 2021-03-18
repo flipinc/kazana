@@ -1,0 +1,45 @@
+# reference: https://github.com/marketplace/actions/electron-builder-action
+
+name: Release
+
+on: push
+
+jobs:
+  Release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v1
+
+      - name: Install Node.js, NPM and Yarn
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14
+          
+      - name: Install alsa and pulse audio on linux
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get install libasound2 libasound2-dev libpulse-dev
+
+      - name: Install rtaudio
+        run: git submodule update -i
+      
+      - name: Build binaries
+        run: |
+          yarn install
+          yarn run build-binaries
+
+      - name: Build & release electron app
+        uses: samuelmeuli/action-electron-builder@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          # If the commit is tagged with a version (e.g. "v1.0.0"),
+          # release the app after building
+          release: ${{ startsWith(github.ref, 'refs/tags/v') }}

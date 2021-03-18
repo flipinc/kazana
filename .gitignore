@@ -1,5 +1,13 @@
+.DS_Store
+
+out
 dist
+build
 
 node_modules
 
 .env
+
+yarn-error.log
+
+.prebuild-installrc

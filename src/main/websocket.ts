@@ -1,195 +1,121 @@
-import WebSocket from "ws";
-// using System;
-// using WebSocketSharp;
-// using Newtonsoft.Json;
-// using System.Timers;
-// using System.Text;
-// using System.IO;
-// using NAudio.Wave;
+import Websocket from "ws";
+import bindings from "bindings";
 
-// // 参考: https://gist.github.com/kevinswiber/1390198
+/**
+ * Since clearTimeout only accepts `number` and ReturnType<typeof setTimeout> does not work, this is a workaround
+ * https://stackoverflow.com/questions/45802988/typescript-use-correct-version-of-settimeout-node-vs-window
+ */
+interface CustomWebsocket extends Websocket {
+  pingTimeout?: number;
+}
 
-// // TODO: logging
+/**
+ * Websocket connection to KIKI
+ *
+ * TODO: if connection to kiki fails, retry connection every n seconds
+ */
+export default class Socket {
+  socket: CustomWebsocket | null;
 
-// namespace WsNaudio
-// {
-//     public class Message
-//     {
-//         public string action { get; set; }
-//         public dynamic payload { get; set; }
+  messageCallback: ((payload: KIKIMessage) => void) | null;
 
-//         public Message(string _action, dynamic _payload) =>
-//             (action, payload) = (_action, _payload);
-//     }
+  stream: Stream; // TODO
 
-//     public class Credential
-//     {
-//         public string userId { get; set; }
-//         public string orgId { get; set; }
-//         public string signature { get; set; }
+  constructor() {
+    this.socket = null;
+    this.messageCallback = null;
 
-//         public Credential(string _userId, string _orgId, string _signature) =>
-//             (userId, orgId, signature) = (_userId, _orgId, _signature);
-//     }
+    const addon: Wormhole = bindings("wormhole");
+    const encoderType = 0; // emformer
+    const chunkSize = 20480; // 16000 (sample_rate) x 1.28
+    const rightSize = 5120; // 16000 (sample_rate) x 0.32
+    this.stream = new addon.Stream(encoderType, chunkSize, rightSize);
+    this.stream.getDevices();
+  }
 
-//     class Program
-//     {
-//         private static Timer timer = null;
-//         private static WebSocket ws = null;
-//         private static WasapiLoopbackCapture output = null;
-//         private static WaveInEvent input = null;
+  /**
+   * Register callbacks
+   */
+  onMessage(callback: (payload: KIKIMessage) => void) {
+    this.messageCallback = callback;
+  }
 
-//         private static void HeartBeat()
-//         {
-//             if(timer != null) {
-//                 timer.Stop();
-//                 timer.Dispose();
-//             }
+  onBundle(callback: (buffer: Buffer) => void) {
+    this.stream.onBundle(callback);
+  }
 
-//             timer = new Timer(30000 + 1000);
-//             timer.Elapsed += (Object source, ElapsedEventArgs e) =>
-//             {
-//                 if(ws != null)
-//                 {
-//                     ws.Close(); // onCloseへ
-//                 }
-//             };
-//             timer.AutoReset = false;
-//             timer.Enabled = true;
-//         }
+  heartbeat() {
+    if (!this.socket) return; // if previous heartbeat fails, socket will be none
 
-//         private static void MakeWsConnection(Credential cred) {
-//             ws = new WebSocket($"ws://localhost:4000/kiki/?type=kazana&signature={cred.signature}=&userId={cred.userId}&orgId={cred.orgId}");
+    clearTimeout(this.socket.pingTimeout);
+    this.socket.pingTimeout = (setTimeout(() => {
+      if (!this.socket) return;
+      if (this.messageCallback) {
+        this.messageCallback({ action: "kiki-disconnected" });
+      }
 
-//             try {
-//                 ws.OnOpen += (sender, e) => {
-//                     Message msg = new Message("kiki-connected", null);
-//                     Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                     HeartBeat();
-//                 };
+      this.socket.close();
+      this.socket = null;
+    }, 30000 + 1000) as unknown) as number;
+  }
 
-//                 // TODO: retryを実装（参照: https://github.com/sta/websocket-sharp/issues/511）
-//                 ws.OnClose += (sender, e) => {
-//                     Message msg = new Message("kiki-disconnected", null);
-//                     Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                     if(timer != null) {
-//                         timer.Stop();
-//                         timer.Dispose();
-//                     }
-//                 };
+  connect({
+    signature,
+    userId,
+    orgId,
+  }: {
+    signature: string;
+    userId: string;
+    orgId: string;
+  }) {
+    this.socket = new Websocket(
+      `http://localhost:4000/kiki/?type=kazana&signature=${signature}&userId=${userId}&orgId=${orgId}`,
+    );
 
-//                 ws.OnError += (sender, e) => {
-//                     Message msg = new Message("kiki-disconnected", null);
-//                     Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                     if(timer != null) {
-//                         timer.Stop();
-//                         timer.Dispose();
-//                     }
-//                 };
+    this.socket.onopen = () => {
+      if (this.messageCallback) {
+        this.messageCallback({ action: "kiki-connected" });
+      }
 
-//                 ws.OnMessage += (sender, e) => {
-//                     Message msg = JsonConvert.DeserializeObject<Message>(e.Data);
-//                     switch(msg.action) {
-//                         case "ping":
-//                             Message pingMsg = new Message("pong", null);
-//                             ws.Send(JsonConvert.SerializeObject(pingMsg));
-//                             HeartBeat();
-//                             break;
-//                         case "start-talk":
-//                             // var waveFormat = new NAudio.Wave.WaveFormat(16000, 1); // encodingは、デフォルトでlinear PCM
+      this.heartbeat();
+    };
 
-//                             // output = new WasapiLoopbackCapture()
-//                             // {
-//                             //     WaveFormat = waveFormat
-//                             // };
-//                             // input = new WaveInEvent()
-//                             // {
-//                             //     WaveFormat = waveFormat
-//                             // };
+    this.socket.onclose = () => {
+      if (!this.socket) return;
 
-//                             // var targetFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "KAZANA_TEST");
-//                             // var timestamp = DateTime.Now.ToString("yyyyMMddHHmmssffff");
-//                             // var outputFilePath = Path.Combine(targetFolder, $"output-{msg.payload.talkId.ToString()}-{timestamp}");
-//                             // var inputFilePath = Path.Combine(targetFolder, $"input-{msg.payload.talkId.ToString()}-{timestamp}");
-//                             // var outputWriter = new WaveFileWriter(outputFilePath, waveFormat);
-//                             // var inputWriter = new WaveFileWriter(inputFilePath, waveFormat);
+      clearTimeout(this.socket.pingTimeout);
+      this.socket = null;
+    };
 
-//                             // output.DataAvailable += (s, a) =>
-//                             // {
-//                             //     outputWriter.Write(a.Buffer, 0, a.BytesRecorded);
-//                             // };
-//                             // input.DataAvailable += (s, a) =>
-//                             // {
-//                             //     inputWriter.Write(a.Buffer, 0, a.BytesRecorded);
-//                             // };
+    this.socket.onmessage = (message) => {
+      if (!this.socket) return;
 
-//                             // output.StartRecording();
-//                             // input.StartRecording();
+      const msg: KIKIMessage = JSON.parse(message.data.toString());
+      switch (msg.action) {
+        case "ping":
+          this.heartbeat();
+          this.socket.send(JSON.stringify({ action: "pong" }));
+          break;
+        case "start-talk":
+          this.stream.start();
+          break;
+        default:
+          if (this.messageCallback) {
+            this.messageCallback(msg);
+          }
+          break;
+      }
+    };
+  }
 
-//                             Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                             break;
-//                         case "end-talk":
-//                             // TODO: api serverの/s3にrequestを送って音声ファイルをアップロードする。
-//                             // output.StopRecording();
-//                             // output.Dispose();
-//                             // output = null;
-//                             // input.StopRecording();
-//                             // input.Dispose();
-//                             // input = null;
+  disconnect() {
+    this.stream.stop();
+  }
 
-//                             Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                             break;
-//                         default:
-//                             Console.WriteLine(JsonConvert.SerializeObject(msg));
-//                             break;
-//                     }
-//                 };
-
-//                 ws.Connect();
-//             } catch {
-//                 if(ws != null) {
-//                     ws.Close();
-//                     ws = null;
-//                 }
-
-//                 if(output != null) {
-//                     output.Dispose();
-//                     output = null;
-//                 }
-
-//                 if(input != null) {
-//                     input.Dispose();
-//                     input = null;
-//                 }
-//             }
-//         }
-
-//         static void Main(string[] args)
-//         {
-//             var input = Console.OpenStandardInput();
-//             var buffer = new byte[1024];
-//             int length;
-
-//             while(input.CanRead && (length = input.Read(buffer, 0, buffer.Length)) > 0)
-//             {
-//                 var payload = new byte[length];
-//                 Buffer.BlockCopy(buffer, 0, payload, 0, length);
-//                 string message = Encoding.UTF8.GetString(payload);
-
-//                 Message msg = JsonConvert.DeserializeObject<Message>(message);
-//                 switch(msg.action) {
-//                     case "login":
-//                         Credential cred = new Credential(msg.payload.userId.ToString(), msg.payload.orgId.ToString(), msg.payload.signature.ToString());
-//                         MakeWsConnection(cred);
-//                         break;
-//                     case "logout":
-//                         if(ws != null) {
-//                             ws.Close();
-//                             ws = null;
-//                         }
-//                         break;
-//                 }
-//             }
-//         }
-//     }
-// }
+  close() {
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+  }
+}
