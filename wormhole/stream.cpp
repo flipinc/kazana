@@ -9,10 +9,6 @@
 
 #include "stream.h"
 
-extern "C" {
-#include "tensorflow/lite/c/c_api.h"
-}
-
 #if defined(_WIN32) || defined(_WIN64)
     #define PLATFORM_NAME "windows"
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -46,10 +42,6 @@ Napi::Array arrayFromVector(Napi::Env env, std::vector<T> items) {
     return array;
 };
 
-/**
- * Note: if input_data_size != TfLiteTensorByteSize(tensor), the interpreter does not give any error,
- * instead it outputs 0 for upoint every time. This makes it really hard to debug.
- */
 void Stream::recognize() {
     std::unique_lock microphoneLock(microphoneMutex, std::defer_lock);
 
@@ -57,41 +49,13 @@ void Stream::recognize() {
         microphoneLock.lock();
         hasDataArrived.wait(microphoneLock);
 
-        TfLiteTensor* signalIt = TfLiteInterpreterGetInputTensor(interpreter, 0);
-        unsigned int signalLength = TfLiteTensorDim(signalIt, 0);
-        TfLiteTensorCopyFromBuffer(signalIt, microphoneSignal, signalLength * sizeof(float));
+        // TODO: bundle loopback and microphone into [2, 25600]
 
         microphoneLock.unlock();
 
-        TfLiteTensor* prevTokenIt = TfLiteInterpreterGetInputTensor(interpreter, 1);
-        TfLiteTensorCopyFromBuffer(prevTokenIt, &prevToken, 1 * sizeof(int));
+        // TODO: send buffer to node js
 
-        TfLiteTensor* encoderStatesIt = TfLiteInterpreterGetInputTensor(interpreter, 2);
-        TfLiteTensorCopyFromBuffer(encoderStatesIt, &encoderStates, 2 * 18 * 1 * 20 * 8 * 64 * sizeof(float));
-
-        TfLiteTensor* predictorStatesIt = TfLiteInterpreterGetInputTensor(interpreter, 3);
-        TfLiteTensorCopyFromBuffer(predictorStatesIt, &predictorStates, 1 * 2 * 1 * 512 * sizeof(float));
-
-        TfLiteInterpreterInvoke(interpreter);
-
-        const TfLiteTensor* upointsOt = TfLiteInterpreterGetOutputTensor(interpreter, 0);
-        unsigned int upointLength = TfLiteTensorDim(upointsOt, 0);
-        int upoints[upointLength];
-        TfLiteTensorCopyToBuffer(upointsOt, upoints, upointLength * sizeof(int));
-
-        const TfLiteTensor* prevTokenOt = TfLiteInterpreterGetOutputTensor(interpreter, 1);
-        TfLiteTensorCopyToBuffer(prevTokenOt, &prevToken, 1 * sizeof(unsigned int));
-
-        const TfLiteTensor* encoderStatesOt = TfLiteInterpreterGetOutputTensor(interpreter, 2);
-        TfLiteTensorCopyToBuffer(encoderStatesOt, &encoderStates, 2 * 18 * 1 * 20 * 8 * 64 * sizeof(float));
-
-        const TfLiteTensor* predictorStatesOt = TfLiteInterpreterGetOutputTensor(interpreter, 3);
-        TfLiteTensorCopyToBuffer(predictorStatesOt, &predictorStates, 1 * 2 * 1 * 512 * sizeof(float));
-
-        std::string result = "";
-        for(unsigned int i=0; i < upointLength; i++) {
-            result = result + upointToString(upoints[i]);
-        }
+        std::string result = "HELLO";
 
         recognizeCallback.NonBlockingCall([result](Napi::Env env, Napi::Function callback) {
             callback.Call({Napi::String::New(env, result)});
@@ -162,26 +126,7 @@ Stream::Stream(const Napi::CallbackInfo& info) :
         return;
     }
 
-    const char* model_path = "/home/keisuke26/Documents/Chief/ekaki/kazana/pokari/emformer_char3265_mini_stack.tflite";
-    model = TfLiteModelCreateFromFile(model_path);
-    if (model == nullptr) {
-        Napi::Error::New(env, "Model could not be loaded.").ThrowAsJavaScriptException();
-        return;
-    }
-
     microphoneSignal = new float[segmentSize]{};
-
-    options = TfLiteInterpreterOptionsCreate();
-    TfLiteInterpreterOptionsSetNumThreads(options, 2);
-    
-    interpreter = TfLiteInterpreterCreate(model, options);
-    if (interpreter == nullptr) {
-        Napi::Error::New(env, "Failed initializing tflite interpreter.").ThrowAsJavaScriptException();
-        return;
-    }
-    
-    TfLiteInterpreterResizeInputTensor(interpreter, 0, (int *)(&segmentSize), 1);
-    TfLiteInterpreterAllocateTensors(interpreter);
 
     rtAudio = std::make_shared<RtAudio>();
 
@@ -217,10 +162,6 @@ Stream::~Stream() {
     delete futureMicrophoneSignal;
 
     if ( rtAudio->isStreamOpen() ) rtAudio->closeStream();
-
-    TfLiteInterpreterDelete(interpreter);
-    TfLiteInterpreterOptionsDelete(options);
-    TfLiteModelDelete(model);
 }
 
 Napi::Value Stream::getDevices(const Napi::CallbackInfo &info) {

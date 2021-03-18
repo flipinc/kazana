@@ -4,7 +4,7 @@ out
 dist
 build
 
-lib/**/*.so*
+lib/*
 pokari/*
 
 node_modules

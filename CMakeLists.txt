@@ -37,10 +37,7 @@ ENDIF()
 # should not be built, just as the default rtaudio setting
 set(RTAUDIO_BUILD_TESTING OFF)
 add_subdirectory(vendor/rtaudio rtaudio)
-
-# include all third party directories
 include_directories(vendor/rtaudio)
-include_directories(vendor/tensorflow)
 
 # Set C++17 standard
 set(CMAKE_CXX_STANDARD 17)
@@ -68,7 +65,4 @@ string(REPLACE "\"" "" NODE_ADDON_API_DIR ${NODE_ADDON_API_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${NODE_ADDON_API_DIR})
 
 # Compile the library
-target_link_libraries(${PROJECT_NAME} ${CMAKE_JS_LIB} rtaudio ${CMAKE_SOURCE_DIR}/lib/linux_x86_x64/libtensorflowlite_c.so)
-
-# Copy libtensorflowlite_c inside build
-file(COPY ${CMAKE_SOURCE_DIR}/lib/linux_x86_x64/libtensorflowlite_c.so DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+target_link_libraries(${PROJECT_NAME} ${CMAKE_JS_LIB} rtaudio)

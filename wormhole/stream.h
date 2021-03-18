@@ -1,13 +1,10 @@
 #ifndef STREAM_H
 #define STREAM_H
 
-#include <vector>
 #include <condition_variable>
 
 #include <napi.h>
 #include <RtAudio.h>
-
-#include "tensorflow/lite/c/c_api.h"
 
 enum Encoder {
     EMFORMER,
@@ -89,13 +86,11 @@ class Stream : public Napi::ObjectWrap<Stream> {
         std::condition_variable hasDataArrived;
  
         float* microphoneSignal;
-        // std::shared_ptr<float[]> microphoneSignal;
 
         const Encoder encoderType;
 
         // for emformer model
         float* futureMicrophoneSignal;
-        // std::shared_ptr<float[]> futureMicrophoneSignal;
         const unsigned int rightSize;
         const unsigned int chunkSize;
 
@@ -114,32 +109,13 @@ class Stream : public Napi::ObjectWrap<Stream> {
         std::mutex microphoneMutex;
         std::mutex loopbackMutex;
 
-        TfLiteModel* model;
-        TfLiteInterpreter* interpreter;
-        TfLiteInterpreterOptions* options;
-
         void recognize();
-
-        // ref: https://stackoverflow.com/questions/59424842/how-to-give-multi-dimensional-inputs-to-tflite-via-c-api
-        // ref: https://stackoverflow.com/questions/56222822/how-to-set-input-with-image-for-tensorflow-lite-in-c
-        unsigned int prevToken{0};
-        float encoderStates[2][18][1][20][8][64] {}; // emformer
-        // float encoder_states[8][2][1][1024] {}; // rnnt
-        float predictorStates[1][2][1][512] {};
 
         unsigned int getSampleSize(RtAudioFormat format);
 
         std::mutex threadsFnMutex;
         // Napi::ThreadSafeFunction stateChangeCallback;
         Napi::ThreadSafeFunction recognizeCallback;
-
-        /**
-         * A single test pass for measuring ASR recognition time. This is used so that
-         * if a user does not meet minimum computational requirements, asr will not be run
-         * Args:
-         *  time_lapsed (float)
-         */
-        // Napi::Value test(const Napi::CallbackInfo& info);
 };
 
 #endif
