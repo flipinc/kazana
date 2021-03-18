@@ -28,9 +28,9 @@
     ]
   },
   "repository": {
-		"type": "git",
-		"url": "git+https://github.com/chief-co-jp/kazana.git"
-	},
+    "type": "git",
+    "url": "git+https://github.com/chief-co-jp/kazana.git"
+  },
   "scripts": {
     "serve": "electron ./build/main.bundle.js",
     "build": "webpack --config webpack.config.js",
@@ -84,7 +84,6 @@
     "css-loader": "^5.0.1",
     "electron": "^11.3.0",
     "electron-builder": "^22.9.1",
-    "electron-rebuild": "^2.3.2",
     "electron-reload": "^1.5.0",
     "eslint": "^7.21.0",
     "eslint-config-airbnb-typescript": "^12.3.1",
@@ -99,6 +98,7 @@
     "html-webpack-plugin": "^5.2.0",
     "npm-run-all": "^4.1.5",
     "prebuild": "^10.0.1",
+    "prebuild-install": "^6.0.1",
     "prettier": "^2.2.1",
     "run-script-os": "^1.1.5",
     "source-map-support": "^0.5.19",
