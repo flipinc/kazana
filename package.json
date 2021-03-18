@@ -1,41 +1,65 @@
 {
   "name": "kazana",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Desktop App for EKAKI",
-  "main": "/dist/main.bundle.js",
-  "repository": "chief-co-jp/kazana",
+  "main": "build/main.bundle.js",
   "homepage": "https://ekaki.ai",
   "author": {
     "name": "Keisuke Iizuka",
-    "email": "26keisuke@chief.co.jp",
-    "url": "https://chief.co.jp"
+    "email": "26keisuke@chief.co.jp"
   },
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
+  "build": {
+    "appId": "ekaki.kazana",
+    "productName": "EKAKI for Desktop",
+    "directories": {
+      "buildResources": "static"
+    },
+    "files": [
+      "build/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "static",
+        "to": "extraResources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chief-co-jp/kazana.git"
   },
   "scripts": {
-    "serve": "electron ./dist/main.bundle.js",
-    "build": "webpack --watch --config webpack.config.js",
-    "start": "npm-run-all --parallel build serve",
+    "serve": "electron ./build/main.bundle.js",
+    "build": "webpack --config webpack.config.js",
+    "dev": "webpack --watch --config webpack.config.js",
+    "start": "npm-run-all --parallel dev serve",
     "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix ./src",
-    "build:mac": "electron-builder build --mac --x64",
-    "build:win": "electron-builder build --win --x64"
+    "dist": "NODE_ENV=production yarn build && electron-builder build",
+    "rebuild:wormhole": "cmake-js compile -r electron --runtime-version=11.0.0 -O out",
+    "install:wormhole": "prebuild-install || npm run rebuild:wormhole",
+    "build-binaries": "run-script-os",
+    "build-binaries:win32": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u %GITHUB_TOKEN%",
+    "build-binaries:darwin:linux": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u $GITHUB_TOKEN"
   },
   "keywords": [],
   "license": "ISC",
   "dependencies": {
     "axios": "^0.21.0",
+    "bindings": "^1.5.0",
+    "cmake-js": "^6.1.0",
     "dotenv": "^8.2.0",
-    "electron": "^12.0.0",
     "electron-log": "^4.3.0",
     "electron-store": "^7.0.2",
     "electron-util": "^0.14.2",
     "fs-extra": "^9.0.1",
     "lodash": "^4.17.20",
-    "menubar": "^9.0.1",
+    "node-addon-api": "^3.1.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-router-dom": "^5.2.0",
     "styled-components": "^5.2.1",
     "ws": "^7.3.1"
   },
@@ -45,18 +69,21 @@
     "@babel/preset-env": "^7.12.1",
     "@babel/preset-react": "^7.12.5",
     "@babel/preset-typescript": "^7.13.0",
+    "@types/bindings": "^1.5.0",
     "@types/globalthis": "^1.0.1",
     "@types/lodash": "^4.14.168",
     "@types/react": "^17.0.2",
     "@types/react-dom": "^17.0.1",
+    "@types/react-router-dom": "^5.1.7",
+    "@types/source-map-support": "^0.5.3",
     "@types/styled-components": "^5.1.7",
     "@types/ws": "^7.4.0",
     "@typescript-eslint/eslint-plugin": "^4.16.1",
     "@typescript-eslint/parser": "^4.16.1",
     "babel-loader": "^8.1.0",
     "css-loader": "^5.0.1",
+    "electron": "^11.3.0",
     "electron-builder": "^22.9.1",
-    "electron-rebuild": "^2.3.2",
     "electron-reload": "^1.5.0",
     "eslint": "^7.21.0",
     "eslint-config-airbnb-typescript": "^12.3.1",
@@ -70,9 +97,12 @@
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.2.0",
     "npm-run-all": "^4.1.5",
+    "prebuild": "^10.0.1",
+    "prebuild-install": "^6.0.1",
     "prettier": "^2.2.1",
+    "run-script-os": "^1.1.5",
+    "source-map-support": "^0.5.19",
     "style-loader": "^2.0.0",
-    "ts-loader": "^8.0.17",
     "typescript": "^4.2.3",
     "webpack": "^5.4.0",
     "webpack-cli": "^4.2.0"

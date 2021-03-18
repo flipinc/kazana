@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { dialog } from "electron";
 import Store from "electron-store";
 
@@ -17,7 +18,7 @@ const onLaunch = async () => {
   });
 
   if (response === 0) {
-    console.log("HELLO");
+    // TODO
   }
 };
 
