@@ -11,6 +11,10 @@
   "build": {
     "appId": "ekaki.kazana",
     "productName": "EKAKI for Desktop",
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    },
     "directories": {
       "buildResources": "static"
     },
