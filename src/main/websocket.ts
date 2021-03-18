@@ -30,6 +30,7 @@ export default class Socket {
     const chunkSize = 20480; // 16000 (sample_rate) x 1.28
     const rightSize = 5120; // 16000 (sample_rate) x 0.32
     this.stream = new addon.Stream(encoderType, chunkSize, rightSize);
+    this.stream.getDevices();
   }
 
   /**
@@ -39,8 +40,8 @@ export default class Socket {
     this.messageCallback = callback;
   }
 
-  onRecognize(callback: (transcript: string) => void) {
-    this.stream.onRecognize(callback);
+  onBundle(callback: (buffer: Buffer) => void) {
+    this.stream.onBundle(callback);
   }
 
   heartbeat() {
