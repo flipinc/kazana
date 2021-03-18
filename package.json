@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Desktop App for EKAKI",
   "main": "build/main.bundle.js",
-  "repository": "chief-co-jp/kazana",
   "homepage": "https://ekaki.ai",
   "author": {
     "name": "Keisuke Iizuka",
@@ -28,6 +27,10 @@
       }
     ]
   },
+  "repository": {
+		"type": "git",
+		"url": "git+https://github.com/chief-co-jp/kazana.git"
+	},
   "scripts": {
     "serve": "electron ./build/main.bundle.js",
     "build": "webpack --config webpack.config.js",
