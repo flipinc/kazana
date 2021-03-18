@@ -1,8 +1,4 @@
 #include <thread>
-#include <locale>
-#include <codecvt>
-#include <vector>
-#include <array>
 
 #include <napi.h>
 #include <RtAudio.h>
@@ -19,17 +15,6 @@
     #define PLATFORM_NAME NULL
 #endif
 
-// from http://www.zedwood.com/article/cpp-utf8-char-to-codepoint
-std::string upointToString(int cp) {
-    char c[5]={ 0x00,0x00,0x00,0x00,0x00 };
-    if     (cp<=0x7F) { c[0] = cp;  }
-    else if(cp<=0x7FF) { c[0] = (cp>>6)+192; c[1] = (cp&63)+128; }
-    else if(0xd800<=cp && cp<=0xdfff) {} //invalid block of utf8
-    else if(cp<=0xFFFF) { c[0] = (cp>>12)+224; c[1]= ((cp>>6)&63)+128; c[2]=(cp&63)+128; }
-    else if(cp<=0x10FFFF) { c[0] = (cp>>18)+240; c[1] = ((cp>>12)&63)+128; c[2] = ((cp>>6)&63)+128; c[3]=(cp&63)+128; }
-    return std::string(c);
-}
-
 template <typename T>
 Napi::Array arrayFromVector(Napi::Env env, std::vector<T> items) {
     Napi::Array array = Napi::Array::New(env, items.size());
@@ -42,7 +27,7 @@ Napi::Array arrayFromVector(Napi::Env env, std::vector<T> items) {
     return array;
 };
 
-void Stream::recognize() {
+void Stream::bundle() {
     std::unique_lock microphoneLock(microphoneMutex, std::defer_lock);
 
     while (1) {
@@ -57,7 +42,7 @@ void Stream::recognize() {
 
         std::string result = "HELLO";
 
-        recognizeCallback.NonBlockingCall([result](Napi::Env env, Napi::Function callback) {
+        bundleCallback.NonBlockingCall([result](Napi::Env env, Napi::Function callback) {
             callback.Call({Napi::String::New(env, result)});
         });
     }
@@ -222,11 +207,11 @@ void Stream::onRecognize(const Napi::CallbackInfo& info) {
 
     Napi::Function _recognizeCallback = info[0].As<Napi::Function>();
 
-    if (recognizeCallback != nullptr) {
-        recognizeCallback.Release();
+    if (bundleCallback != nullptr) {
+        bundleCallback.Release();
     }
 
-    recognizeCallback = Napi::ThreadSafeFunction::New(env, _recognizeCallback, "recognizeCallback", 0, 1);
+    bundleCallback = Napi::ThreadSafeFunction::New(env, _recognizeCallback, "recognizeCallback", 0, 1);
 }
 
 void Stream::start(const Napi::CallbackInfo& info) {
@@ -243,12 +228,12 @@ void Stream::start(const Napi::CallbackInfo& info) {
      */
     Napi::Env env = info.Env();
 
-    if (recognizeCallback == nullptr) {
+    if (bundleCallback == nullptr) {
         Napi::Error::New(env, "Recognize callback must be set before starting.").ThrowAsJavaScriptException();
         return;
     }
     
-    std::thread recognizeThread(&Stream::recognize, this);
+    std::thread recognizeThread(&Stream::bundle, this);
     recognizeThread.detach();
 
     try {

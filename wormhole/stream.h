@@ -109,13 +109,13 @@ class Stream : public Napi::ObjectWrap<Stream> {
         std::mutex microphoneMutex;
         std::mutex loopbackMutex;
 
-        void recognize();
+        void bundle();
 
         unsigned int getSampleSize(RtAudioFormat format);
 
         std::mutex threadsFnMutex;
         // Napi::ThreadSafeFunction stateChangeCallback;
-        Napi::ThreadSafeFunction recognizeCallback;
+        Napi::ThreadSafeFunction bundleCallback;
 };
 
 #endif

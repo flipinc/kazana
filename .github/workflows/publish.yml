@@ -28,17 +28,13 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get install libasound2 libasound2-dev libpulse-dev
 
-      - name: Init submodule
+      - name: Install rtaudio
         run: git submodule update -i
-
-      # TODO: download a prebuilt tensorflow
       
       - name: Build binaries
         run: |
           yarn install
           yarn run build-binaries
-
-      # TODO: download a tflite model from s3
 
       - name: Build/release Electron app
         uses: samuelmeuli/action-electron-builder@v1
