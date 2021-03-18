@@ -5,7 +5,6 @@
             "includePath": [
                 "${workspaceFolder}/node_modules/node-addon-api",
                 "${workspaceFolder}/vendor/rtaudio",
-                "${workspaceFolder}/vendor/tensorflow",
                 "/usr/include/nodejs/src"
             ],
             "defines": [],
