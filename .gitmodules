@@ -2,7 +2,3 @@
 	path = vendor/rtaudio
 	url = https://github.com/thestk/rtaudio
 	ignore = dirty
-[submodule "vendor/tensorflow"]
-	path = vendor/tensorflow
-	url = https://github.com/tensorflow/tensorflow
-	ignore = dirty
