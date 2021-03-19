@@ -187,14 +187,14 @@ Stream::Stream(const Napi::CallbackInfo& info) :
             microphoneSignal = std::make_shared<std::vector<float>>(segmentSize, 0);
             futureMicrophoneSignal = std::make_shared<std::vector<float>>(rightSize, 0);
 
+            isMicrophoneEnabled = true;
+
             log("Successfully opened microphone.");
         } catch(RtAudioError& e) {
             isMicrophoneEnabled = false;
 
             log(e.getMessage()); // Do not throw error here as some errors are expected
         }
-
-        isMicrophoneEnabled = false;
 
         if (isLoopbackEnabled) {
             try {
