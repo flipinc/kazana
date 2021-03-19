@@ -34,6 +34,7 @@ import sourceMapSupport from "source-map-support";
 
 import Socket from "./websocket";
 import onLaunch from "./launch";
+import "./update";
 
 sourceMapSupport.install();
 
