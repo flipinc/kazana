@@ -42,11 +42,11 @@
     "start": "npm-run-all --parallel dev serve",
     "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix ./src",
     "dist": "NODE_ENV=production yarn build && electron-builder build",
-    "rebuild:wormhole": "cmake-js compile -r electron --runtime-version=11.0.0",
+    "rebuild:wormhole": "cmake-js compile -r electron --runtime-version=12.0.0",
     "install:wormhole": "prebuild-install || npm run rebuild:wormhole",
     "build-binaries": "run-script-os",
-    "build-binaries:win32": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u %GITHUB_TOKEN%",
-    "build-binaries:darwin:linux": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 11.0.0 --verbose -u $GITHUB_TOKEN"
+    "build-binaries:win32": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 12.0.0 --verbose -u %GITHUB_TOKEN%",
+    "build-binaries:darwin:linux": "prebuild --backend cmake-js --include-regex \"^.*\\.(node|dylib|dll|so(\\.[0-9])?)$\" -r electron -t 12.0.0 --verbose -u $GITHUB_TOKEN"
   },
   "keywords": [],
   "license": "ISC",
@@ -86,7 +86,7 @@
     "@typescript-eslint/parser": "^4.16.1",
     "babel-loader": "^8.1.0",
     "css-loader": "^5.0.1",
-    "electron": "^11.3.0",
+    "electron": "12.0.1",
     "electron-builder": "^22.9.1",
     "electron-reload": "^1.5.0",
     "eslint": "^7.21.0",
