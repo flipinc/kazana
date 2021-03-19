@@ -1,6 +1,6 @@
 // electron is listed as devDependency
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { shell } from "electron";
+import { shell, remote } from "electron";
 import React, { useState } from "react";
 import styled from "styled-components";
 
@@ -10,7 +10,7 @@ const aboutBackground = require("../assets/background-about.svg");
 // in development, this returns electron binary version. But it works fine
 // production
 // https://github.com/electron/electron/issues/7085
-const version = "app.getVersion();";
+const version = remote.app.getVersion();
 
 const About = () => {
   const [selectedSlide, setSelectedSlide] = useState("open_desktop_app");

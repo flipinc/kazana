@@ -99,6 +99,7 @@ const createAboutWindow = () => {
     resizable: false,
     webPreferences: {
       nodeIntegration: true,
+      enableRemoteModule: true,
     },
   });
 
