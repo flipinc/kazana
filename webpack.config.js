@@ -47,7 +47,7 @@ module.exports = [
         entry: './src/main/index.ts',
         output: {
             filename: 'main.bundle.js',
-            path: path.resolve(__dirname, 'build')
+            path: path.resolve(__dirname, 'out')
         },
     }),
     Object.assign({}, common_config, {
@@ -55,7 +55,7 @@ module.exports = [
         entry: './src/renderer/index.tsx',
         output: {
             filename: 'renderer.bundle.js',
-            path: path.resolve(__dirname, 'build')
+            path: path.resolve(__dirname, 'out')
         },
         plugins: [
             new HtmlWebpackPlugin({
