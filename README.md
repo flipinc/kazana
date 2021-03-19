@@ -1,6 +1,10 @@
 # KAZANA | Desktop App for EKAKI
 KAZANA consists of three modules: Desktop App Frontend, Websocket Client, Wormhole.
 
+### Version
+- node v15.12.0
+- npm v7.6.3
+
 ### First Setup
 After runinng `git clone`, run following commands
 ```shell

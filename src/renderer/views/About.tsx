@@ -7,9 +7,10 @@ import styled from "styled-components";
 const ekakiImage = require("../assets/ekaki-logo.png");
 const aboutBackground = require("../assets/background-about.svg");
 
-// 1. Open desktop app 2. Login from Desktop 3. Login from Browser 4. Start Talk
-// show version
-// link to browser
+// in development, this returns electron binary version. But it works fine
+// production
+// https://github.com/electron/electron/issues/7085
+const version = "app.getVersion();";
 
 const About = () => {
   const [selectedSlide, setSelectedSlide] = useState("open_desktop_app");
@@ -65,7 +66,7 @@ const About = () => {
           </h2>
           <div>
             <h5>Version</h5>
-            <h5>0.1.0</h5>
+            <h5>{version}</h5>
           </div>
         </div>
         <div>
