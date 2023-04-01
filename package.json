@@ -1,16 +1,11 @@
 {
   "name": "kazana",
   "version": "0.1.0",
-  "description": "Desktop App for EKAKI",
+  "description": "A Desktop Application for Streaming Speech Recognition",
   "main": "out/main.bundle.js",
-  "homepage": "https://ekaki.ai",
-  "author": {
-    "name": "Keisuke Iizuka",
-    "email": "26keisuke@chief.co.jp"
-  },
   "build": {
     "appId": "ekaki.kazana",
-    "productName": "EKAKI for Desktop",
+    "productName": "Kazana",
     "publish": {
       "provider": "github",
       "releaseType": "release"
@@ -33,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chief-co-jp/kazana.git"
+    "url": "git+https://github.com/flipinc/kazana.git"
   },
   "scripts": {
     "serve": "electron ./out/main.bundle.js",
